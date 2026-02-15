@@ -58,7 +58,7 @@ Workflow (`.github/workflows/ci.yml`) запускается при пуше в 
 
 **Секрет в репозитории Frontend:** `INFRA_REPO_TOKEN` — **персональный токен (PAT)**, не `GITHUB_TOKEN`. Токен создаётся в GitHub → Settings → Developer settings → Personal access tokens, с правом `repo`; владелец токена должен иметь право запускать workflow в репо Infra. Если при вызове dispatch приходит 401 — токен не задан, неверный или без доступа к Infra.
 
-Образы пушатся в **GitHub Container Registry (ghcr.io)**. После push видимость пакета выставляется в public через API; если шаг «Set package visibility» падает с 403, один раз смените видимость вручную: репо → Packages → пакет frontend → Package settings → Change visibility → Public.
+Образы пушатся в **GitHub Container Registry (ghcr.io)**. Пакет по умолчанию приватный. Если в организации отключена видимость «Public» для пакетов (администратором), образ так и остаётся приватным — в репо Infra для pull на серверах используются секреты `GHCR_TOKEN` и `GHCR_USERNAME` (логин в ghcr.io по SSH перед `docker compose pull`).
 
 ## Как проверять
 

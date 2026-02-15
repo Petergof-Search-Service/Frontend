@@ -73,15 +73,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Set package visibility to public
-        run: |
-          PKG_NAME=$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')
-          curl -sSf -X PATCH \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${PKG_NAME}" \
-            -d '{"visibility":"public"}'
-
       - name: Trigger Infra deploy (prod)
         run: |
           IMAGE_FULL="${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}:latest"
@@ -127,15 +118,6 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ steps.image-tag.outputs.name }}:${{ steps.image-tag.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Set package visibility to public
-        run: |
-          PKG_NAME=$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')
-          curl -sSf -X PATCH \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${PKG_NAME}" \
-            -d '{"visibility":"public"}'
 
       - name: Trigger Infra deploy (test)
         run: |
