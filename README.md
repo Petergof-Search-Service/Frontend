@@ -56,7 +56,9 @@ Workflow (`.github/workflows/ci.yml`) запускается при пуше в 
 - **Build and push (прод)** — только при пуше в `main`: сборка образа, теги `latest`/`stable`/sha, push в ghcr.io, вызов Infra `frontend-updated` → деплой на прод.
 - **Build and push (тест)** — при пуше в любую ветку, кроме `main`: сборка образа с тегом `branch-shortSha`, push в ghcr.io, вызов Infra `frontend-test-updated` → деплой на тестовый сервер (в т.ч. при коммитах в PR).
 
-**Секрет в репозитории Frontend:** `INFRA_REPO_TOKEN` — PAT с правом `repo` для вызова workflow в репо Infra.
+**Секрет в репозитории Frontend:** `INFRA_REPO_TOKEN` — **персональный токен (PAT)**, не `GITHUB_TOKEN`. Токен создаётся в GitHub → Settings → Developer settings → Personal access tokens, с правом `repo`; владелец токена должен иметь право запускать workflow в репо Infra. Если при вызове dispatch приходит 401 — токен не задан, неверный или без доступа к Infra.
+
+Образы пушатся в **GitHub Container Registry (ghcr.io)**. После push видимость пакета выставляется в public через API; если шаг «Set package visibility» падает с 403, один раз смените видимость вручную: репо → Packages → пакет frontend → Package settings → Change visibility → Public.
 
 ## Как проверять
 
