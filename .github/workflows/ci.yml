@@ -75,13 +75,44 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Trigger Infra deploy (prod)
+        env:
+          INFRA_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
+          API_URL: "https://api.github.com/repos/${{ github.repository_owner }}/${{ env.INFRA_REPO }}"
         run: |
           IMAGE_FULL="${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}:latest"
           curl -sSf -X POST \
-            -H "Authorization: token ${{ secrets.INFRA_REPO_TOKEN }}" \
+            -H "Authorization: token ${INFRA_TOKEN}" \
             -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/${{ github.repository_owner }}/${{ env.INFRA_REPO }}/dispatches" \
+            "${API_URL}/dispatches" \
             -d "{\"event_type\":\"frontend-updated\",\"client_payload\":{\"image\":\"${IMAGE_FULL}\"}}"
+          echo "Waiting for Infra workflow to start..."
+          sleep 15
+          RUN_ID=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+            "${API_URL}/actions/runs?event=repository_dispatch&per_page=1" | jq -r '.workflow_runs[0].id')
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "Could not find Infra workflow run"
+            exit 1
+          fi
+          echo "Infra run id: $RUN_ID, waiting for completion (max 15 min)..."
+          for i in $(seq 1 60); do
+            RUN_JSON=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+              "${API_URL}/actions/runs/${RUN_ID}")
+            STATUS=$(echo "$RUN_JSON" | jq -r '.status')
+            CONCLUSION=$(echo "$RUN_JSON" | jq -r '.conclusion')
+            if [ "$STATUS" = "completed" ]; then
+              if [ "$CONCLUSION" = "success" ]; then
+                echo "Infra deploy succeeded."
+                exit 0
+              else
+                echo "Infra deploy failed (conclusion: $CONCLUSION)"
+                exit 1
+              fi
+            fi
+            echo "  status=$STATUS, waiting 15s..."
+            sleep 15
+          done
+          echo "Timeout waiting for Infra workflow"
+          exit 1
 
   build-and-push-test:
     name: Build and push image (test)
@@ -123,10 +154,41 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Trigger Infra deploy (test)
+        env:
+          INFRA_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
+          API_URL: "https://api.github.com/repos/${{ github.repository_owner }}/${{ env.INFRA_REPO }}"
         run: |
           IMAGE_FULL="${{ env.REGISTRY }}/${{ steps.image-tag.outputs.name }}:${{ steps.image-tag.outputs.tag }}"
           curl -sSf -X POST \
-            -H "Authorization: token ${{ secrets.INFRA_REPO_TOKEN }}" \
+            -H "Authorization: token ${INFRA_TOKEN}" \
             -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/${{ github.repository_owner }}/${{ env.INFRA_REPO }}/dispatches" \
+            "${API_URL}/dispatches" \
             -d "{\"event_type\":\"frontend-test-updated\",\"client_payload\":{\"image\":\"${IMAGE_FULL}\"}}"
+          echo "Waiting for Infra workflow to start..."
+          sleep 15
+          RUN_ID=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+            "${API_URL}/actions/runs?event=repository_dispatch&per_page=1" | jq -r '.workflow_runs[0].id')
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "Could not find Infra workflow run"
+            exit 1
+          fi
+          echo "Infra run id: $RUN_ID, waiting for completion (max 15 min)..."
+          for i in $(seq 1 60); do
+            RUN_JSON=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+              "${API_URL}/actions/runs/${RUN_ID}")
+            STATUS=$(echo "$RUN_JSON" | jq -r '.status')
+            CONCLUSION=$(echo "$RUN_JSON" | jq -r '.conclusion')
+            if [ "$STATUS" = "completed" ]; then
+              if [ "$CONCLUSION" = "success" ]; then
+                echo "Infra deploy succeeded."
+                exit 0
+              else
+                echo "Infra deploy failed (conclusion: $CONCLUSION)"
+                exit 1
+              fi
+            fi
+            echo "  status=$STATUS, waiting 15s..."
+            sleep 15
+          done
+          echo "Timeout waiting for Infra workflow"
+          exit 1
