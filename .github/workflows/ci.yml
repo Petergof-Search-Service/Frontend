@@ -35,7 +35,7 @@ jobs:
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     env:
-      REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+      REMOTE_PATH_FRONTEND: ${{ secrets.REMOTE_PATH_FRONTEND }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,7 +64,7 @@ jobs:
 
       - name: Deploy via rsync
         run: |
-          TARGET="${REMOTE_PATH:-/home/kizhinov/Petergof/frontend}"
+          TARGET="${REMOTE_PATH_FRONTEND:-/home/kizhinov/Petergof/frontend}"
           rsync -avz --delete \
             -e "ssh -o StrictHostKeyChecking=no" \
             build/ \
