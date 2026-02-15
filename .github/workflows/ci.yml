@@ -64,7 +64,7 @@ jobs:
 
       - name: Deploy via rsync
         run: |
-          TARGET="${REMOTE_PATH:-/home/kizhinov/www}"
+          TARGET="${REMOTE_PATH:-/home/kizhinov/Petergof/frontend}"
           rsync -avz --delete \
             -e "ssh -o StrictHostKeyChecking=no" \
             build/ \
