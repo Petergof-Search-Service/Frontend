@@ -15,7 +15,7 @@
   - `/create_index` — создание индекса из выбранных файлов, только для админа.
 - **API:** все запросы к бэкенду идут на `REACT_APP_API_URL` (ответы на вопросы, индексы, файлы, токены, настройки, отзывы).
 - **Тема:** светлая/тёмная (ThemeContext), переключатель в шапке.
-- **Сборка:** Create React App; в Docker — мультистейдж: сборка и раздача статики через `serve` на порту 3000.
+- **Сборка:** Create React App, результат в `build/`.
 
 ## Запуск
 
@@ -48,15 +48,14 @@ npm run build
 ```
 Результат в папке `build/`.
 
-### Запуск через Docker
+## CI/CD
 
-В Dockerfile задан `REACT_APP_API_URL=http://158.160.145.236:8000/api/v1`. Для своего бэкенда пересоберите образ с нужным значением (ARG/ENV).
+Workflow (`.github/workflows/ci.yml`) запускается при пуше и при открытии/обновлении PR в ветку `main`.
 
-```bash
-docker build -t frontend .
-docker run -p 3000:3000 frontend
-```
-Приложение будет доступно на http://localhost:3000.
+- **Test** — на каждом событии: `npm ci`, `npm run test:ci`. Проверяет, что тесты проходят.
+- **Deploy** — только при пуше в `main` (после успешных тестов): сборка `npm run build`, выгрузка каталога `build/` на сервер через rsync по SSH, выставление прав для nginx.
+
+В репозитории должны быть заданы секреты: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, при необходимости `REMOTE_PATH_FRONTEND` (по умолчанию `/home/kizhinov/Petergof/frontend`).
 
 ## Как проверять
 
