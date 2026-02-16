@@ -1,9 +1,11 @@
 import axios from 'axios';
-import {refreshToken} from "./GetToken";
+import { refreshToken } from "./GetToken";
+import { getApiBaseUrl } from '../config';
 
 export const uploadOcr = async (file, navigate) => {
-    const uploadURL = process.env.REACT_APP_API_URL + "/files";
-    const statusUrl = process.env.REACT_APP_API_URL + "/files/status";
+    const base = getApiBaseUrl();
+    const uploadURL = base + "/files";
+    const statusUrl = base + "/files/status";
 
     const formData = new FormData();
     formData.append("file", file);

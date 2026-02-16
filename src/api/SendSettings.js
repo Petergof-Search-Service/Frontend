@@ -1,9 +1,10 @@
 import axios from 'axios';
-import {refreshToken} from "./GetToken";
-import {sendStatistic} from "./SendStatistic";
+import { refreshToken } from "./GetToken";
+import { sendStatistic } from "./SendStatistic";
+import { getApiBaseUrl } from '../config';
 
 export const sendSettings = async (settings, navigate) => {
-    const askUrl = process.env.REACT_APP_API_URL + "/settings";
+    const askUrl = getApiBaseUrl() + "/settings";
 
     const accessToken = localStorage.getItem("access_token");
     try {

@@ -1,8 +1,9 @@
 import axios from 'axios';
-import {refreshToken} from "./GetToken";
+import { refreshToken } from "./GetToken";
+import { getApiBaseUrl } from '../config';
 
 export const getSettings = async (navigate) => {
-    const askUrl = process.env.REACT_APP_API_URL + "/settings";
+    const askUrl = getApiBaseUrl() + "/settings";
 
     const accessToken = localStorage.getItem("access_token");
     try {

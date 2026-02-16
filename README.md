@@ -13,7 +13,7 @@
   - `/settings` — настройки пользователя;
   - `/file` — загрузка PDF (OCR), только для админа;
   - `/create_index` — создание индекса из выбранных файлов, только для админа.
-- **API:** все запросы к бэкенду идут на `REACT_APP_API_URL` (ответы на вопросы, индексы, файлы, токены, настройки, отзывы).
+- **API:** все запросы к бэкенду идут на базовый URL из `src/config.js`. Если при сборке задан `REACT_APP_API_URL` — используется он; иначе URL подставляется по hostname: `localhost` → `http://localhost:8000/api/v1`, домены с `test.` → `https://test.petergof-sciense-rag.ru/api/v1`, иначе → `https://petergof-sciense-rag.ru/api/v1`.
 - **Тема:** светлая/тёмная (ThemeContext), переключатель в шапке.
 - **Сборка:** Create React App, результат в `build/`.
 
@@ -26,11 +26,11 @@
    npm install
    ```
 
-2. Задать URL бэкенда (обязательно для работы с API):
+2. (Опционально) Задать URL бэкенда. Без переменной локально подставится `http://localhost:8000/api/v1`:
    ```bash
    export REACT_APP_API_URL=http://localhost:8000/api/v1
    ```
-   Либо создать файл `.env` в корне проекта:
+   Либо в `.env`:
    ```
    REACT_APP_API_URL=http://localhost:8000/api/v1
    ```
