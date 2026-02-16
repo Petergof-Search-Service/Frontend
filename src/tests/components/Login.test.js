@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { ThemeProvider } from '../../contexts/ThemeContext';
 import LoginForm from '../../components/Login';
 
 jest.mock('../../api/Authorization', () => ({
@@ -11,9 +12,11 @@ const { setUser } = require('../../api/Authorization');
 
 const renderLogin = () => {
   return render(
-    <MemoryRouter>
-      <LoginForm />
-    </MemoryRouter>
+    <ThemeProvider>
+      <MemoryRouter>
+        <LoginForm />
+      </MemoryRouter>
+    </ThemeProvider>
   );
 };
 
