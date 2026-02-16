@@ -2,8 +2,11 @@ import React, {useState} from 'react';
 import {setUser} from "../api/Authorization";
 import {useNavigate, Link} from "react-router-dom";
 import {Button, Form, Container, Alert, Card, Spinner} from 'react-bootstrap';
+import {useTheme} from '../contexts/ThemeContext';
+import {MoonFill, SunFill} from 'react-bootstrap-icons';
 
 const LoginForm = () => {
+    const { theme, toggleTheme } = useTheme();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
@@ -65,6 +68,15 @@ const LoginForm = () => {
 
     return (
         <Container className="d-flex justify-content-center align-items-center" style={{minHeight: '100vh', padding: '2rem'}}>
+            <Button
+                variant="outline-secondary"
+                onClick={toggleTheme}
+                className="position-fixed top-0 end-0 m-3 d-flex align-items-center justify-content-center"
+                style={{width: '40px', height: '40px', padding: 0, zIndex: 1050}}
+                title={theme === 'light' ? 'Переключить на тёмную тему' : 'Переключить на светлую тему'}
+            >
+                {theme === 'light' ? <MoonFill size={20} /> : <SunFill size={20} />}
+            </Button>
             <Card className="shadow-lg" style={{width: '100%', maxWidth: '450px'}}>
                 <Card.Body className="p-4">
                     <div className="text-center mb-4">
