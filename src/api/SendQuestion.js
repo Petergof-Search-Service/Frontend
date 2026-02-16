@@ -1,9 +1,11 @@
 import axios from 'axios';
-import {refreshToken} from "./GetToken";
+import { refreshToken } from "./GetToken";
+import { getApiBaseUrl } from '../config';
 
 export const askQuestion = async (index, user_question, navigate) => {
-    const askUrl = process.env.REACT_APP_API_URL + "/answer";
-    const statusUrl = process.env.REACT_APP_API_URL + "/answer/status/";
+    const base = getApiBaseUrl();
+    const askUrl = base + "/answer";
+    const statusUrl = base + "/answer/status/";
 
     const accessToken = localStorage.getItem("access_token");
 

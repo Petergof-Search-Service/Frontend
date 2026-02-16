@@ -1,9 +1,11 @@
 import axios from 'axios';
-import {refreshToken} from "./GetToken";
+import { refreshToken } from "./GetToken";
+import { getApiBaseUrl } from '../config';
 
 export const uploadIndexApi = async (file_names, name, navigate) => {
-    const uploadURL = process.env.REACT_APP_API_URL + "/indexes";
-    const statusUrl = process.env.REACT_APP_API_URL + "/indexes/status";
+    const base = getApiBaseUrl();
+    const uploadURL = base + "/indexes";
+    const statusUrl = base + "/indexes/status";
 
     const accessToken = localStorage.getItem("access_token");
 

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getApiBaseUrl } from '../config';
 
 let refreshPromise = null;
 
@@ -22,7 +23,7 @@ export const refreshToken = async (navigate) => {
         return await refreshPromise;
     }
 
-    const refreshUrl = process.env.REACT_APP_API_URL + "/refresh";
+    const refreshUrl = getApiBaseUrl() + "/refresh";
     refreshPromise = (async () => {
         try {
             const response = await axios.post(refreshUrl, {}, {

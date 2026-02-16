@@ -1,8 +1,9 @@
 import axios from 'axios';
 import qs from 'qs';
+import { getApiBaseUrl } from '../config';
 
 export const setUser = async (email, password) => {
-    const tokenUrl = process.env.REACT_APP_API_URL + "/token";
+    const tokenUrl = getApiBaseUrl() + "/token";
 
     console.log(tokenUrl);
 
@@ -22,7 +23,7 @@ export const setUser = async (email, password) => {
 };
 
 export const registerUser = async (email, password) => {
-    const registerUrl = process.env.REACT_APP_API_URL + "/register";
+    const registerUrl = getApiBaseUrl() + "/register";
 
     const response = await axios.post(registerUrl, {
         'email': email,

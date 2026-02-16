@@ -1,8 +1,9 @@
 import axios from 'axios';
-import {refreshToken} from "./GetToken";
+import { refreshToken } from "./GetToken";
+import { getApiBaseUrl } from '../config';
 
 export const sendStatistic = async (user_question, model_answer, is_ok, correct_answer, navigate) => {
-    const askUrl = process.env.REACT_APP_API_URL + "/review";
+    const askUrl = getApiBaseUrl() + "/review";
 
     const accessToken = localStorage.getItem("access_token");
     try {
