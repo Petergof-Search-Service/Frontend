@@ -50,12 +50,13 @@ npm run build
 
 ## CI/CD
 
-Workflow (`.github/workflows/ci.yml`) запускается при пуше и при открытии/обновлении PR в ветку `main`.
+Workflow (`.github/workflows/ci.yml`) запускается при пуше в любую ветку и при открытии/обновлении PR в `main`.
 
-- **Test** — на каждом событии: `npm ci`, `npm run test:ci`. Проверяет, что тесты проходят.
-- **Deploy** — только при пуше в `main` (после успешных тестов): сборка `npm run build`, выгрузка каталога `build/` на сервер через rsync по SSH, выставление прав для nginx.
+- **Test** — на каждом событии: `npm ci`, `npm run test:ci`.
+- **Build and push (прод)** — только при пуше в `main`: сборка образа, теги `latest`/`stable`/sha, push в ghcr.io, вызов Infra `frontend-updated` → деплой на прод.
+- **Build and push (тест)** — при пуше в любую ветку, кроме `main`: сборка образа с тегом `branch-shortSha`, push в ghcr.io, вызов Infra `frontend-test-updated` → деплой на тестовый сервер (в т.ч. при коммитах в PR).
 
-В репозитории должны быть заданы секреты: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, при необходимости `REMOTE_PATH_FRONTEND` (по умолчанию `/home/kizhinov/Petergof/frontend`).
+Образы пушатся в **GitHub Container Registry (ghcr.io)**. Репозитории публичные — pull на серверах Infra без авторизации.
 
 ## Как проверять
 

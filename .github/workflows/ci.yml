@@ -1,4 +1,4 @@
-name: CI/CD
+name: Build and Push Frontend
 
 on:
   push:
@@ -8,14 +8,15 @@ on:
 
 env:
   NODE_VERSION: "20"
+  REGISTRY: ghcr.io
+  INFRA_REPO: "Infra"
 
 jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,53 +30,165 @@ jobs:
       - name: Run tests
         run: npm run test:ci
 
-  deploy:
-    name: Deploy to server
+  build-and-push:
+    name: Build and push image
     runs-on: ubuntu-latest
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    env:
-      REMOTE_PATH_FRONTEND: ${{ secrets.REMOTE_PATH_FRONTEND }}
+    permissions:
+      contents: read
+      packages: write
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Set image name (lowercase for registry)
+        id: image-name
+        run: |
+          echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Setup SSH key
-        uses: webfactory/ssh-agent@v0.9.0
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          images: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=stable,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=
 
-      - name: Add server to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Deploy via rsync
+      - name: Trigger Infra deploy (prod)
+        env:
+          INFRA_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
+          API_URL: "https://api.github.com/repos/${{ github.repository_owner }}/${{ env.INFRA_REPO }}"
         run: |
-          TARGET="${REMOTE_PATH_FRONTEND:-/home/kizhinov/Petergof/frontend}"
-          rsync -avz --delete \
-            -e "ssh -o StrictHostKeyChecking=no" \
-            build/ \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:"$TARGET"/
+          IMAGE_FULL="${{ env.REGISTRY }}/${{ steps.image-name.outputs.name }}:latest"
+          curl -sSf -X POST \
+            -H "Authorization: token ${INFRA_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "${API_URL}/dispatches" \
+            -d "{\"event_type\":\"frontend-updated\",\"client_payload\":{\"image\":\"${IMAGE_FULL}\"}}"
+          echo "Waiting for Infra workflow to start..."
+          sleep 15
+          RUN_ID=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+            "${API_URL}/actions/runs?event=repository_dispatch&per_page=1" | jq -r '.workflow_runs[0].id')
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "Could not find Infra workflow run"
+            exit 1
+          fi
+          echo "Infra run id: $RUN_ID, waiting for completion (max 15 min)..."
+          for i in $(seq 1 60); do
+            RUN_JSON=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+              "${API_URL}/actions/runs/${RUN_ID}")
+            STATUS=$(echo "$RUN_JSON" | jq -r '.status')
+            CONCLUSION=$(echo "$RUN_JSON" | jq -r '.conclusion')
+            if [ "$STATUS" = "completed" ]; then
+              if [ "$CONCLUSION" = "success" ]; then
+                echo "Infra deploy succeeded."
+                exit 0
+              else
+                echo "Infra deploy failed (conclusion: $CONCLUSION)"
+                exit 1
+              fi
+            fi
+            echo "  status=$STATUS, waiting 15s..."
+            sleep 15
+          done
+          echo "Timeout waiting for Infra workflow"
+          exit 1
 
-      - name: Fix permissions for nginx
+  build-and-push-test:
+    name: Build and push image (test)
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set image name and tag (branch + short sha)
+        id: image-tag
         run: |
-          TARGET="${REMOTE_PATH_FRONTEND:-/home/kizhinov/Petergof/frontend}"
-          # Make path traversable and files readable by www-data (nginx)
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
-            dir='$TARGET';
-            while [ \"\$dir\" != \"/\" ]; do chmod o+x \"\$dir\" 2>/dev/null; dir=\$(dirname \"\$dir\"); done;
-            chmod -R o+rX '$TARGET'
-          "
+          BRANCH="${{ github.head_ref }}"
+          BRANCH_SLUG=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9._-]/-/g' | cut -c1-50)
+          SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
+          echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          echo "tag=${BRANCH_SLUG}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ steps.image-tag.outputs.name }}:${{ steps.image-tag.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trigger Infra deploy (test)
+        env:
+          INFRA_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
+          API_URL: "https://api.github.com/repos/${{ github.repository_owner }}/${{ env.INFRA_REPO }}"
+        run: |
+          IMAGE_FULL="${{ env.REGISTRY }}/${{ steps.image-tag.outputs.name }}:${{ steps.image-tag.outputs.tag }}"
+          curl -sSf -X POST \
+            -H "Authorization: token ${INFRA_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "${API_URL}/dispatches" \
+            -d "{\"event_type\":\"frontend-test-updated\",\"client_payload\":{\"image\":\"${IMAGE_FULL}\"}}"
+          echo "Waiting for Infra workflow to start..."
+          sleep 15
+          RUN_ID=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+            "${API_URL}/actions/runs?event=repository_dispatch&per_page=1" | jq -r '.workflow_runs[0].id')
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "Could not find Infra workflow run"
+            exit 1
+          fi
+          echo "Infra run id: $RUN_ID, waiting for completion (max 15 min)..."
+          for i in $(seq 1 60); do
+            RUN_JSON=$(curl -sSf -H "Authorization: token ${INFRA_TOKEN}" -H "Accept: application/vnd.github.v3+json" \
+              "${API_URL}/actions/runs/${RUN_ID}")
+            STATUS=$(echo "$RUN_JSON" | jq -r '.status')
+            CONCLUSION=$(echo "$RUN_JSON" | jq -r '.conclusion')
+            if [ "$STATUS" = "completed" ]; then
+              if [ "$CONCLUSION" = "success" ]; then
+                echo "Infra deploy succeeded."
+                exit 0
+              else
+                echo "Infra deploy failed (conclusion: $CONCLUSION)"
+                exit 1
+              fi
+            fi
+            echo "  status=$STATUS, waiting 15s..."
+            sleep 15
+          done
+          echo "Timeout waiting for Infra workflow"
+          exit 1
