@@ -165,12 +165,14 @@ const ChatComponent = () => {
             ));
         }
 
-        // Для сообщений бота ищем "Текст 1" и делаем спойлер
-        const spoilerMarker = "Текст 1";
-        const spoilerIndex = text.indexOf(spoilerMarker);
-        
-        if (spoilerIndex === -1) {
-            // Если "Текст 1" не найден, просто форматируем
+        // Для сообщений бота разделяем по разделителю с бэка (answer + 8 переносов + source)
+        const delimiter = "\n\n\n\n\n\n\n\n";
+        const parts = text.split(delimiter);
+        const visiblePart = (parts[0] || "").trim();
+        const hiddenPart = (parts[1] || "").trim();
+
+        if (!hiddenPart) {
+            // Нет блока источников — просто форматируем весь текст
             const lines = text.split('\n');
             return lines.map((line, index) => (
                 <React.Fragment key={index}>
@@ -180,12 +182,8 @@ const ChatComponent = () => {
             ));
         }
 
-        // Разделяем текст на две части: видимая часть до "Текст 1", скрытая - начиная с "Текст 1"
-        const visiblePart = text.substring(0, spoilerIndex).trim();
-        const hiddenPart = text.substring(spoilerIndex).trim();
-
         if (!visiblePart) {
-            // Если до "Текст 1" ничего нет, весь текст под спойлером
+            // Видимая часть пуста — весь контент под спойлером (источники)
             const hiddenLines = hiddenPart.split('\n');
             const formattedHidden = hiddenLines.map((line, index) => (
                 <React.Fragment key={index}>
@@ -205,7 +203,7 @@ const ChatComponent = () => {
             </React.Fragment>
         ));
 
-        // Форматируем скрытую часть (начиная с "Текст 1")
+        // Форматируем скрытую часть (источники)
         const hiddenLines = hiddenPart.split('\n');
         const formattedHidden = hiddenLines.map((line, index) => (
             <React.Fragment key={index}>
