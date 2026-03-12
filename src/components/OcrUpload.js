@@ -1,14 +1,15 @@
 import React, {useEffect, useState} from "react";
-import {Form, Button, Spinner, Alert, Container, Card} from "react-bootstrap";
+import {Form, Button, Spinner, Alert, Container, Card, ProgressBar} from "react-bootstrap";
 import Navbar from "./Navbar";
 import {isAdmin} from "../api/IsAdmin";
 import {useNavigate} from "react-router-dom";
 import {checkFileRunning} from "../api/CheckFileRunning";
-import {uploadOcr} from "../api/UploadOcr";
+import {uploadFile} from "../api/UploadFile";
 
 const OcrUpload = () => {
     const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(null);
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(false);
     const [isAdminUser, setIsAdminUser] = useState(false);
@@ -35,6 +36,8 @@ const OcrUpload = () => {
         fetchAllow();
     }, [navigate]);
 
+    const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5 GB (лимит single-part PUT в S3)
+
     const handleFileChange = (event) => {
         const selectedFile = event.target.files[0];
         if (selectedFile) {
@@ -43,8 +46,8 @@ const OcrUpload = () => {
                 setFile(null);
                 return;
             }
-            if (selectedFile.size > 50 * 1024 * 1024) { // 50MB
-                setError("Размер файла не должен превышать 50 МБ");
+            if (selectedFile.size > MAX_FILE_SIZE) {
+                setError(`Размер файла не должен превышать ${MAX_FILE_SIZE / 1024 / 1024 / 1024} ГБ`);
                 setFile(null);
                 return;
             }
@@ -61,12 +64,13 @@ const OcrUpload = () => {
         }
 
         setLoading(true);
+        setUploadProgress(0);
         localStorage.setItem('file_loading', "true");
         setError(null);
         setSuccess(false);
 
         try {
-            await uploadOcr(file, navigate);
+            await uploadFile(file, navigate, (percent) => setUploadProgress(percent));
             setSuccess(true);
             setFile(null);
             // Сброс input file
@@ -74,10 +78,11 @@ const OcrUpload = () => {
             setTimeout(() => {
                 setSuccess(false);
             }, 3000);
-        } catch (error) {
-            setError("Ошибка загрузки файла. Попробуйте позже.");
+        } catch (err) {
+            setError(err.message || "Ошибка загрузки файла. Попробуйте позже.");
         } finally {
             setLoading(false);
+            setUploadProgress(null);
             localStorage.setItem('file_loading', "false");
         }
     };
@@ -120,15 +125,29 @@ const OcrUpload = () => {
                                     disabled={loading}
                                 />
                                 <Form.Text className="text-muted">
-                                    Максимальный размер файла: 50 МБ. Поддерживаются только PDF файлы.
+                                    Максимальный размер файла: 5 ГБ. Поддерживаются только PDF файлы.
                                 </Form.Text>
                                 {file && (
                                     <div className="mt-2">
                                         <Alert variant="info" className="mb-0">
-                                            <strong>Выбранный файл:</strong> {file.name} 
+                                            <strong>Выбранный файл:</strong> {file.name}
                                             <br />
                                             <small>Размер: {(file.size / 1024 / 1024).toFixed(2)} МБ</small>
                                         </Alert>
+                                    </div>
+                                )}
+                                {loading && uploadProgress !== null && (
+                                    <div className="mt-3">
+                                        <ProgressBar
+                                            now={uploadProgress}
+                                            label={`${uploadProgress}%`}
+                                            variant="primary"
+                                            striped
+                                            animated
+                                        />
+                                        <small className="text-muted">
+                                            {uploadProgress < 100 ? 'Загрузка в облако...' : 'Ожидание обработки...'}
+                                        </small>
                                     </div>
                                 )}
                             </Form.Group>
