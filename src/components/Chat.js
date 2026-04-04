@@ -111,7 +111,8 @@ const ChatComponent = () => {
             const response = await askQuestion(selectIndex, input.trim(), navigate);
             const botResponse = {
                 id: Date.now() + 1,
-                text: response,
+                text: response.answer,
+                context: response.context,
                 sender: "bot",
                 liked: null
             };
@@ -153,69 +154,29 @@ const ChatComponent = () => {
         setQuestionForCorrection("");
     };
 
-    const formatMessage = (text, isBot = false) => {
+    const formatMessage = (text, isBot = false, context = null) => {
+        const formatLines = (str) => str.split('\n').map((line, index, arr) => (
+            <React.Fragment key={index}>
+                {line}
+                {index < arr.length - 1 && <br />}
+            </React.Fragment>
+        ));
+
         if (!isBot) {
-            // Для сообщений пользователя просто форматируем
-            const lines = text.split('\n');
-            return lines.map((line, index) => (
-                <React.Fragment key={index}>
-                    {line}
-                    {index < lines.length - 1 && <br />}
-                </React.Fragment>
-            ));
+            return formatLines(text);
         }
 
-        // Для сообщений бота разделяем по разделителю с бэка (answer + 8 переносов + source)
-        const delimiter = "\n\n\n\n\n\n\n\n";
-        const parts = text.split(delimiter);
-        const visiblePart = (parts[0] || "").trim();
-        const hiddenPart = (parts[1] || "").trim();
+        const formattedAnswer = formatLines(text || "");
+        const trimmedContext = (context || "").trim();
 
-        if (!hiddenPart) {
-            // Нет блока источников — просто форматируем весь текст
-            const lines = text.split('\n');
-            return lines.map((line, index) => (
-                <React.Fragment key={index}>
-                    {line}
-                    {index < lines.length - 1 && <br />}
-                </React.Fragment>
-            ));
+        if (!trimmedContext) {
+            return formattedAnswer;
         }
-
-        if (!visiblePart) {
-            // Видимая часть пуста — весь контент под спойлером (источники)
-            const hiddenLines = hiddenPart.split('\n');
-            const formattedHidden = hiddenLines.map((line, index) => (
-                <React.Fragment key={index}>
-                    {line}
-                    {index < hiddenLines.length - 1 && <br />}
-                </React.Fragment>
-            ));
-            return <SpoilerContent content={formattedHidden} />;
-        }
-
-        // Форматируем видимую часть
-        const visibleLines = visiblePart.split('\n');
-        const formattedVisible = visibleLines.map((line, index) => (
-            <React.Fragment key={index}>
-                {line}
-                {index < visibleLines.length - 1 && <br />}
-            </React.Fragment>
-        ));
-
-        // Форматируем скрытую часть (источники)
-        const hiddenLines = hiddenPart.split('\n');
-        const formattedHidden = hiddenLines.map((line, index) => (
-            <React.Fragment key={index}>
-                {line}
-                {index < hiddenLines.length - 1 && <br />}
-            </React.Fragment>
-        ));
 
         return (
             <>
-                {formattedVisible}
-                <SpoilerContent content={formattedHidden} />
+                {formattedAnswer}
+                <SpoilerContent content={formatLines(trimmedContext)} />
             </>
         );
     };
@@ -310,7 +271,7 @@ const ChatComponent = () => {
                                     <Card.Body className="p-2">
                                         <div className="d-flex justify-content-between align-items-start gap-2">
                                             <div className="flex-grow-1" style={{whiteSpace: 'pre-wrap', wordBreak: 'break-word'}}>
-                                                {formatMessage(msg.text, msg.sender === "bot")}
+                                                {formatMessage(msg.text, msg.sender === "bot", msg.context)}
                                             </div>
                                             {msg.sender === "bot" && (
                                                 <ButtonGroup size="sm" className="flex-shrink-0">

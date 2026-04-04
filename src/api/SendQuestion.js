@@ -5,7 +5,6 @@ import { getApiBaseUrl } from '../config';
 export const askQuestion = async (index, user_question, navigate) => {
     const base = getApiBaseUrl();
     const askUrl = base + "/answer";
-    const statusUrl = base + "/answer/status/";
 
     const accessToken = localStorage.getItem("access_token");
 
@@ -20,27 +19,7 @@ export const askQuestion = async (index, user_question, navigate) => {
             }
         });
 
-        const taskId = response.data.task_id;
-
-        while (true) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            try {
-                const statusResponse = await axios.get(`${statusUrl}${taskId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`
-                    }
-                });
-
-                if (statusResponse.status === 200) {
-                    return statusResponse.data.status;
-                }
-            } catch (statusError) {
-                if (statusError.response?.status !== 404) {
-                    break;
-                }
-            }
-        }
+        return response.data;
     } catch (error) {
         if (error.response?.status === 401) {
             if (await refreshToken(navigate)) {
