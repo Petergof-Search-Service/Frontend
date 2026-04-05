@@ -36,7 +36,7 @@ const ChatComponent = () => {
             text: msg.content,
             sender: msg.role === "user" ? "user" : "bot",
             liked: null,
-            context: null,
+            context: msg.context ?? null,
         }));
 
     // При монтировании: сразу показываем localStorage, затем фоново обновляем с сервера
