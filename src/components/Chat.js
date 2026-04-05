@@ -7,6 +7,7 @@ import {sendStatistic} from "../api/SendStatistic";
 import DescriptionWindow from "./DescriptionWindow";
 import {getIndexes} from "../api/GetIndexes";
 import {isAdmin} from "../api/IsAdmin";
+import {getHistory} from "../api/GetHistory";
 import Navbar from "./Navbar";
 import { InfoCircle, ChevronDown, ChevronUp } from "react-bootstrap-icons";
 
@@ -26,24 +27,43 @@ const ChatComponent = () => {
     );
     const [isAdminUser, setIsAdminUser] = useState(false);
     const [error, setError] = useState(null);
+    const [historyLoading, setHistoryLoading] = useState(true);
 
-    // Загрузка сохраненного состояния при монтировании
+    // Конвертация серверного формата сообщений в локальный
+    const convertServerMessages = (serverMessages) =>
+        serverMessages.map((msg) => ({
+            id: msg.id,
+            text: msg.content,
+            sender: msg.role === "user" ? "user" : "bot",
+            liked: null,
+            context: null,
+        }));
+
+    // При монтировании: сразу показываем localStorage, затем фоново обновляем с сервера
     useEffect(() => {
         const savedMessages = localStorage.getItem("chat_messages");
-        const savedIndex = localStorage.getItem("chat_selected_index");
-        
         if (savedMessages) {
             try {
-                const parsedMessages = JSON.parse(savedMessages);
-                setMessages(parsedMessages);
-            } catch (error) {
-                console.error("Error parsing saved messages:", error);
+                setMessages(JSON.parse(savedMessages));
+            } catch {
+                localStorage.removeItem("chat_messages");
             }
         }
-        
+
+        getHistory(navigate).then((serverMessages) => {
+            if (serverMessages) {
+                const converted = convertServerMessages(serverMessages);
+                setMessages(converted);
+                localStorage.setItem("chat_messages", JSON.stringify(converted));
+            }
+            setHistoryLoading(false);
+        });
+
+        const savedIndex = localStorage.getItem("chat_selected_index");
         if (savedIndex) {
             setSelectIndex(savedIndex);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -241,7 +261,12 @@ const ChatComponent = () => {
                 )}
 
                 <div className="flex-grow-1 p-2 overflow-auto" style={{backgroundColor: 'var(--bg-tertiary)'}}>
-                    {messages.length === 0 ? (
+                    {historyLoading && messages.length === 0 ? (
+                        <div className="d-flex align-items-center justify-content-center" style={{minHeight: '150px'}}>
+                            <Spinner animation="border" size="sm" className="me-2" />
+                            <span style={{color: 'var(--text-secondary)'}}>Загрузка истории...</span>
+                        </div>
+                    ) : messages.length === 0 ? (
                         <div className="d-flex flex-column align-items-center justify-content-center" style={{minHeight: '150px', paddingTop: '1rem'}}>
                             <div className="text-center">
                                 <div className="mb-2">
