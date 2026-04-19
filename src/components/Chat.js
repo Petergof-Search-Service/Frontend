@@ -154,16 +154,27 @@ const ChatComponent = () => {
     const sendMessage = async () => {
         if (!input.trim() || asking) return;
         if (!selectIndex) { setError("Пожалуйста, выберите индекс"); return; }
-        if (!activeChatId) { setError("Выберите или создайте чат"); return; }
 
-        const userMessage = {id: Date.now(), text: input.trim(), sender: "user"};
+        let chatId = activeChatId;
+        let isNewChat = false;
+        const inputText = input.trim();
+
+        if (!chatId) {
+            const newChat = await createChat(navigate);
+            if (!newChat) { setError("Не удалось создать чат"); return; }
+            chatId = newChat.id;
+            isNewChat = true;
+            setChats(prev => [newChat, ...prev]);
+        }
+
+        const userMessage = {id: Date.now(), text: inputText, sender: "user"};
         setMessages(prev => [...prev, userMessage]);
         setInput("");
         setAsking(true);
         setError(null);
 
         try {
-            const response = await askQuestion(selectIndex, input.trim(), activeChatId, navigate);
+            const response = await askQuestion(selectIndex, inputText, chatId, navigate);
             const botResponse = {
                 id: Date.now() + 1,
                 text: response.answer,
@@ -173,12 +184,18 @@ const ChatComponent = () => {
             };
             setMessages(prev => [...prev, botResponse]);
 
-            // Обновить заголовок чата если он изменился (был "Новый чат")
             setChats(prev => prev.map(c =>
-                c.id === activeChatId && c.title === "Новый чат"
-                    ? { ...c, title: userMessage.text.slice(0, 60) }
+                c.id === chatId && c.title === "Новый чат"
+                    ? { ...c, title: inputText.slice(0, 60) }
                     : c
             ));
+
+            if (isNewChat) {
+                // Записываем в localStorage до навигации — эффект загрузки истории
+                // найдёт сообщения и не будет делать лишний запрос к серверу
+                localStorage.setItem(`chat_messages_${chatId}`, JSON.stringify([userMessage, botResponse]));
+                navigate(`/chat/${chatId}`, { replace: true });
+            }
         } catch {
             setError("Ошибка при отправке вопроса. Попробуйте еще раз.");
             setMessages(prev => prev.filter(msg => msg.id !== userMessage.id));
@@ -399,7 +416,7 @@ const ChatComponent = () => {
                                             await sendMessage();
                                         }
                                     }}
-                                    disabled={asking || !activeChatId}
+                                    disabled={asking}
                                     style={{
                                         resize: 'none',
                                         backgroundColor: 'var(--input-bg)',
@@ -450,7 +467,7 @@ const ChatComponent = () => {
                             <Col xs="auto">
                                 <Button
                                     onClick={sendMessage}
-                                    disabled={asking || !input.trim() || !selectIndex || !activeChatId}
+                                    disabled={asking || !input.trim() || !selectIndex}
                                     size="lg"
                                     style={{padding: '0.5rem 1.5rem', fontSize: '1rem'}}
                                 >
