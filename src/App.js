@@ -17,8 +17,16 @@ function App() {
                 <Routes>
                 <Route path="/login" element={isAuthenticated ? <Navigate to="/chat" replace /> : <LoginForm/>}/>
                 <Route path="/register" element={isAuthenticated ? <Navigate to="/chat" replace /> : <RegisterForm/>}/>
-                <Route 
-                    path="/chat" 
+                <Route
+                    path="/chat"
+                    element={
+                        <ProtectedRoute>
+                            <ChatComponent/>
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/chat/:chatId"
                     element={
                         <ProtectedRoute>
                             <ChatComponent/>
