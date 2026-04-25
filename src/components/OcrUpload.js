@@ -70,9 +70,7 @@ const OcrUpload = () => {
         );
         const label = STATUS_LABEL[status]?.text ?? status;
         const bg = status === 'indexed' ? 'success' : status === 'failed' || status === 'dead' ? 'danger' : 'primary';
-        if (['indexed', 'failed', 'dead', 'ocr_processing', 'rag_indexing'].includes(status)) {
-            addToast('Статус файла', `${label}${error_message ? ': ' + error_message : ''}`, bg);
-        }
+        addToast('Статус файла', `${label}${error_message ? ': ' + error_message : ''}`, bg);
     }, [addToast]);
 
     // ── WebSocket ──
