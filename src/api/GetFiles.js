@@ -3,7 +3,7 @@ import { refreshToken } from "./GetToken";
 import { getApiBaseUrl } from '../config';
 
 export const getFiles = async (navigate) => {
-    const askUrl = getApiBaseUrl() + "/files";
+    const askUrl = getApiBaseUrl() + "/rag-files";
 
     const accessToken = localStorage.getItem("access_token");
     try {

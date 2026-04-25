@@ -1,92 +1,173 @@
-import React, {useEffect, useState} from "react";
-import {Form, Button, Spinner, Alert, Container, Card, ProgressBar} from "react-bootstrap";
-import Navbar from "./Navbar";
-import {isAdmin} from "../api/IsAdmin";
-import {useNavigate} from "react-router-dom";
-import {checkFileRunning} from "../api/CheckFileRunning";
-import {uploadFile} from "../api/UploadFile";
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+    Alert, Badge, Button, Card, Container, Form,
+    ProgressBar, Spinner, Table, Toast, ToastContainer,
+} from 'react-bootstrap';
+import Navbar from './Navbar';
+import { isAdmin } from '../api/IsAdmin';
+import { useNavigate } from 'react-router-dom';
+import { uploadFile } from '../api/UploadFile';
+import { getUploadedFiles } from '../api/GetUploadedFiles';
+import { getApiBaseUrl } from '../config';
+
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+const STATUS_LABEL = {
+    pending_upload:  { text: 'Ожидание',      bg: 'secondary' },
+    uploading:       { text: 'Загрузка',       bg: 'info'      },
+    uploaded:        { text: 'Загружен',       bg: 'primary'   },
+    ocr_processing:  { text: 'OCR...',         bg: 'warning'   },
+    ocr_done:        { text: 'OCR готов',      bg: 'primary'   },
+    rag_indexing:    { text: 'Индексация...',  bg: 'warning'   },
+    indexed:         { text: 'Готов',          bg: 'success'   },
+    failed:          { text: 'Ошибка',         bg: 'danger'    },
+    dead:            { text: 'Убит watchdog',  bg: 'dark'      },
+};
+
+const statusBadge = (status) => {
+    const { text, bg } = STATUS_LABEL[status] || { text: status, bg: 'secondary' };
+    return <Badge bg={bg}>{text}</Badge>;
+};
+
+const fmtDate = (iso) =>
+    iso ? new Date(iso).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+
+const WS_URL = () => {
+    const base = getApiBaseUrl().replace(/^http/, 'ws').replace('/api/v1', '');
+    const token = localStorage.getItem('access_token');
+    return `${base}/api/v1/ws?token=${token}`;
+};
+
+// ─── component ──────────────────────────────────────────────────────────────
 
 const OcrUpload = () => {
-    const [file, setFile] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [file, setFile]                   = useState(null);
+    const [loading, setLoading]             = useState(false);
     const [uploadProgress, setUploadProgress] = useState(null);
-    const [error, setError] = useState(null);
-    const [success, setSuccess] = useState(false);
-    const [isAdminUser, setIsAdminUser] = useState(false);
+    const [error, setError]                 = useState(null);
+    const [isAdminUser, setIsAdminUser]     = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
-    const navigate = useNavigate();
+    const [files, setFiles]                 = useState([]);         // list[FileRecord]
+    const [toasts, setToasts]               = useState([]);         // { id, title, body, bg }
+    const wsRef                             = useRef(null);
+    const navigate                          = useNavigate();
 
-    useEffect(() => {
-        const fetchAllow = async () => {
+    // ── toast helpers ──
+    const addToast = useCallback((title, body, bg = 'primary') => {
+        const id = Date.now();
+        setToasts((prev) => [...prev, { id, title, body, bg }]);
+        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 5000);
+    }, []);
+
+    // ── update files list from WS message ──
+    const applyStatusUpdate = useCallback(({ file_id, status, error_message }) => {
+        setFiles((prev) =>
+            prev.map((f) =>
+                f.id === file_id
+                    ? { ...f, status, error_message: error_message ?? f.error_message }
+                    : f
+            )
+        );
+        const label = STATUS_LABEL[status]?.text ?? status;
+        const bg = status === 'indexed' ? 'success' : status === 'failed' || status === 'dead' ? 'danger' : 'primary';
+        addToast('Статус файла', `${label}${error_message ? ': ' + error_message : ''}`, bg);
+    }, [addToast]);
+
+    // ── WebSocket ──
+    const connectWs = useCallback(() => {
+        const ws = new WebSocket(WS_URL());
+        wsRef.current = ws;
+
+        ws.onmessage = (e) => {
             try {
-                const is_admin = await isAdmin(navigate);
-                setIsAdminUser(is_admin);
-                if (!is_admin) {
-                    navigate("/chat");
-                    return;
-                }
-                await checkFileRunning();
-                setLoading(localStorage.getItem("file_loading") === "true");
-            } catch (error) {
-                setError("Ошибка проверки прав доступа");
+                const msg = JSON.parse(e.data);
+                if (msg.type === 'file_status') applyStatusUpdate(msg);
+            } catch (_) {}
+        };
+
+        // keepalive ping every 25s
+        const ping = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) ws.send('ping');
+        }, 25000);
+        ws.onclose = (e) => {
+            clearInterval(ping);
+            if (e.code === 4001) {
+                // auth rejected — token expired or invalid, redirect to login
+                navigate('/login');
+                return;
+            }
+            setTimeout(() => { if (wsRef.current === ws) connectWs(); }, 3000);
+        };
+    }, [applyStatusUpdate]);
+
+    // ── init ──
+    useEffect(() => {
+        const init = async () => {
+            try {
+                const admin = await isAdmin(navigate);
+                setIsAdminUser(admin);
+                if (!admin) { navigate('/chat'); return; }
+
+                const data = await getUploadedFiles(navigate);
+                setFiles(data || []);
+                connectWs();
+            } catch {
+                setError('Ошибка загрузки данных');
             } finally {
                 setInitialLoading(false);
             }
         };
-        fetchAllow();
-    }, [navigate]);
+        init();
+        return () => {
+            if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
+        };
+    }, [navigate, connectWs]);
 
-    const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5 GB (лимит single-part PUT в S3)
+    // ── file input ──
+    const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024;
 
-    const handleFileChange = (event) => {
-        const selectedFile = event.target.files[0];
-        if (selectedFile) {
-            if (selectedFile.type !== "application/pdf") {
-                setError("Пожалуйста, выберите PDF файл");
-                setFile(null);
-                return;
-            }
-            if (selectedFile.size > MAX_FILE_SIZE) {
-                setError(`Размер файла не должен превышать ${MAX_FILE_SIZE / 1024 / 1024 / 1024} ГБ`);
-                setFile(null);
-                return;
-            }
-            setFile(selectedFile);
-            setError(null);
-        }
+    const handleFileChange = (e) => {
+        const f = e.target.files[0];
+        if (!f) return;
+        if (f.type !== 'application/pdf') { setError('Пожалуйста, выберите PDF файл'); setFile(null); return; }
+        if (f.size > MAX_FILE_SIZE) { setError('Размер файла не должен превышать 5 ГБ'); setFile(null); return; }
+        setFile(f);
+        setError(null);
     };
 
-    const handleSubmit = async (event) => {
-        event.preventDefault();
-        if (!file) {
-            setError("Пожалуйста, выберите файл");
-            return;
-        }
+    // ── submit ──
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!file) { setError('Пожалуйста, выберите файл'); return; }
 
         setLoading(true);
         setUploadProgress(0);
-        localStorage.setItem('file_loading', "true");
         setError(null);
-        setSuccess(false);
 
         try {
-            await uploadFile(file, navigate, (percent) => setUploadProgress(percent));
-            setSuccess(true);
+            const fileId = await uploadFile(file, navigate, (pct) => setUploadProgress(pct));
+
+            // optimistically add to list (WS will update status further)
+            setFiles((prev) => {
+                if (prev.find((f) => f.id === fileId)) return prev;
+                return [
+                    { id: fileId, original_filename: file.name, display_name: null, status: 'uploaded',
+                      error_message: null, created_at: new Date().toISOString() },
+                    ...prev,
+                ];
+            });
+
             setFile(null);
-            // Сброс input file
-            event.target.reset();
-            setTimeout(() => {
-                setSuccess(false);
-            }, 3000);
+            e.target.reset();
         } catch (err) {
-            setError(err.message || "Ошибка загрузки файла. Попробуйте позже.");
+            setError(err.message || 'Ошибка загрузки файла');
         } finally {
             setLoading(false);
             setUploadProgress(null);
-            localStorage.setItem('file_loading', "false");
         }
     };
 
+    // ── render ──
     if (initialLoading) {
         return (
             <div className="d-flex justify-content-center align-items-center vh-100">
@@ -98,28 +179,32 @@ const OcrUpload = () => {
     return (
         <div className="d-flex flex-column vh-100 bg-light">
             <Navbar isAdmin={isAdminUser} />
-            <Container className="flex-grow-1 py-4">
-                <Card className="shadow-sm">
+
+            {/* Toast container */}
+            <ToastContainer position="top-end" className="p-3" style={{ zIndex: 9999 }}>
+                {toasts.map((t) => (
+                    <Toast key={t.id} bg={t.bg} onClose={() => setToasts((p) => p.filter((x) => x.id !== t.id))}>
+                        <Toast.Header><strong className="me-auto">{t.title}</strong></Toast.Header>
+                        <Toast.Body className={t.bg !== 'light' ? 'text-white' : ''}>{t.body}</Toast.Body>
+                    </Toast>
+                ))}
+            </ToastContainer>
+
+            <Container className="flex-grow-1 py-4" style={{ maxWidth: 900 }}>
+                {/* Upload card */}
+                <Card className="shadow-sm mb-4">
                     <Card.Header className="bg-primary text-white">
                         <h4 className="mb-0">Загрузка файла</h4>
                     </Card.Header>
                     <Card.Body className="p-4">
                         {error && (
-                            <Alert variant="danger" dismissible onClose={() => setError(null)}>
-                                {error}
-                            </Alert>
+                            <Alert variant="danger" dismissible onClose={() => setError(null)}>{error}</Alert>
                         )}
-                        {success && (
-                            <Alert variant="success" dismissible onClose={() => setSuccess(false)}>
-                                Файл успешно загружен! Обработка может занять некоторое время.
-                            </Alert>
-                        )}
-
                         <Form onSubmit={handleSubmit}>
                             <Form.Group controlId="formFile" className="mb-4">
                                 <Form.Label className="fw-semibold">Выберите PDF файл</Form.Label>
-                                <Form.Control 
-                                    type="file" 
+                                <Form.Control
+                                    type="file"
                                     accept=".pdf,application/pdf"
                                     onChange={handleFileChange}
                                     disabled={loading}
@@ -128,13 +213,11 @@ const OcrUpload = () => {
                                     Максимальный размер файла: 5 ГБ. Поддерживаются только PDF файлы.
                                 </Form.Text>
                                 {file && (
-                                    <div className="mt-2">
-                                        <Alert variant="info" className="mb-0">
-                                            <strong>Выбранный файл:</strong> {file.name}
-                                            <br />
-                                            <small>Размер: {(file.size / 1024 / 1024).toFixed(2)} МБ</small>
-                                        </Alert>
-                                    </div>
+                                    <Alert variant="info" className="mt-2 mb-0">
+                                        <strong>{file.name}</strong>
+                                        <br />
+                                        <small>{(file.size / 1024 / 1024).toFixed(2)} МБ</small>
+                                    </Alert>
                                 )}
                                 {loading && uploadProgress !== null && (
                                     <div className="mt-3">
@@ -151,23 +234,53 @@ const OcrUpload = () => {
                                     </div>
                                 )}
                             </Form.Group>
-                            <Button 
-                                type="submit" 
-                                variant="primary" 
-                                disabled={loading || !file}
-                                size="lg"
-                                className="w-100"
-                            >
-                                {loading ? (
-                                    <>
-                                        <Spinner animation="border" size="sm" className="me-2" />
-                                        Загрузка...
-                                    </>
-                                ) : (
-                                    "Загрузить файл"
-                                )}
+                            <Button type="submit" variant="primary" disabled={loading || !file} size="lg" className="w-100">
+                                {loading ? <><Spinner animation="border" size="sm" className="me-2" />Загрузка...</> : 'Загрузить файл'}
                             </Button>
                         </Form>
+                    </Card.Body>
+                </Card>
+
+                {/* Files list */}
+                <Card className="shadow-sm">
+                    <Card.Header className="bg-secondary text-white d-flex justify-content-between align-items-center">
+                        <h5 className="mb-0">Файлы</h5>
+                        <Button
+                            size="sm"
+                            variant="outline-light"
+                            onClick={async () => { const d = await getUploadedFiles(navigate); setFiles(d || []); }}
+                        >
+                            Обновить
+                        </Button>
+                    </Card.Header>
+                    <Card.Body className="p-0">
+                        {files.length === 0 ? (
+                            <p className="text-muted p-3 mb-0">Файлов нет</p>
+                        ) : (
+                            <Table hover responsive className="mb-0">
+                                <thead className="table-light">
+                                    <tr>
+                                        <th>Файл</th>
+                                        <th>Статус</th>
+                                        <th>Загружен</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {files.map((f) => (
+                                        <tr key={f.id}>
+                                            <td>
+                                                {f.display_name || f.original_filename}
+                                                {f.error_message && (
+                                                    <div><small className="text-danger">{f.error_message}</small></div>
+                                                )}
+                                            </td>
+                                            <td>{statusBadge(f.status)}</td>
+                                            <td><small>{fmtDate(f.created_at)}</small></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </Table>
+                        )}
                     </Card.Body>
                 </Card>
             </Container>
