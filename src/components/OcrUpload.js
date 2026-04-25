@@ -87,19 +87,17 @@ const OcrUpload = () => {
             } catch (_) {}
         };
 
-        ws.onclose = () => {
-            // reconnect after 3s unless component unmounted
-            setTimeout(() => {
-                if (wsRef.current === ws) connectWs();
-            }, 3000);
-        };
-
         // keepalive ping every 25s
         const ping = setInterval(() => {
             if (ws.readyState === WebSocket.OPEN) ws.send('ping');
         }, 25000);
-        ws.onclose = () => {
+        ws.onclose = (e) => {
             clearInterval(ping);
+            if (e.code === 4001) {
+                // auth rejected — token expired or invalid, redirect to login
+                navigate('/login');
+                return;
+            }
             setTimeout(() => { if (wsRef.current === ws) connectWs(); }, 3000);
         };
     }, [applyStatusUpdate]);
