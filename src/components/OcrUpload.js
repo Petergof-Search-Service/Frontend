@@ -161,7 +161,6 @@ const OcrUpload = () => {
                 ];
             });
 
-            addToast('Загрузка', `${file.name} успешно загружен`, 'success');
             setFile(null);
             e.target.reset();
         } catch (err) {
