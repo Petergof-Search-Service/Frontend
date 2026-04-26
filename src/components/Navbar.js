@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navbar as BootstrapNavbar, Nav, Container, Button, Badge } from 'react-bootstrap';
+import { Navbar as BootstrapNavbar, Nav, Container, Button, NavDropdown, Badge } from 'react-bootstrap';
 import { LinkContainer } from 'react-router-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
@@ -9,6 +9,8 @@ const Navbar = ({ isAdmin, isOwner }) => {
     const navigate = useNavigate();
     const { theme, toggleTheme } = useTheme();
     const orgName = localStorage.getItem('org_name');
+    const currentOrgId = localStorage.getItem('org_id');
+    const orgList = JSON.parse(localStorage.getItem('org_list') || '[]');
 
     const handleLogout = () => {
         localStorage.removeItem('access_token');
@@ -16,7 +18,15 @@ const Navbar = ({ isAdmin, isOwner }) => {
         localStorage.removeItem('org_id');
         localStorage.removeItem('org_role');
         localStorage.removeItem('org_name');
+        localStorage.removeItem('org_list');
         navigate('/login');
+    };
+
+    const handleOrgSwitch = (org) => {
+        localStorage.setItem('org_id', String(org.id));
+        localStorage.setItem('org_role', org.role);
+        localStorage.setItem('org_name', org.name);
+        navigate(0);
     };
 
     return (
@@ -51,11 +61,27 @@ const Navbar = ({ isAdmin, isOwner }) => {
                         )}
                     </Nav>
                     <Nav className="align-items-center gap-2">
-                        {orgName && (
+                        {orgList.length > 1 ? (
+                            <NavDropdown
+                                title={orgName || 'Организация'}
+                                id="org-switcher"
+                                align="end"
+                            >
+                                {orgList.map(org => (
+                                    <NavDropdown.Item
+                                        key={org.id}
+                                        onClick={() => handleOrgSwitch(org)}
+                                        active={String(org.id) === currentOrgId}
+                                    >
+                                        {org.name}
+                                    </NavDropdown.Item>
+                                ))}
+                            </NavDropdown>
+                        ) : orgName ? (
                             <Badge bg="secondary" style={{fontSize: '0.9rem', padding: '0.4rem 0.7rem'}}>
                                 {orgName}
                             </Badge>
-                        )}
+                        ) : null}
                         <Button
                             variant="outline-secondary"
                             onClick={toggleTheme}

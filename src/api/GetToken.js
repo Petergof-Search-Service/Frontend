@@ -9,6 +9,7 @@ const clearTokensAndRedirect = (navigate) => {
     localStorage.removeItem('org_id');
     localStorage.removeItem('org_role');
     localStorage.removeItem('org_name');
+    localStorage.removeItem('org_list');
     if (typeof navigate === 'function') {
         navigate("/login");
     }
@@ -63,6 +64,7 @@ export const refreshUserOrg = async (navigate) => {
         const orgs = response.data.organizations;
         if (!orgs || orgs.length === 0) return;
         const currentOrgId = localStorage.getItem('org_id');
+        localStorage.setItem('org_list', JSON.stringify(orgs));
         const org = orgs.find(o => String(o.id) === currentOrgId) || orgs[0];
         localStorage.setItem('org_id', String(org.id));
         localStorage.setItem('org_role', org.role);
