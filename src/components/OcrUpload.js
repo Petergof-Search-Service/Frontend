@@ -133,7 +133,6 @@ const OcrUpload = () => {
             const ok = await deleteFile(fileId, navigate);
             if (ok) {
                 setFiles((prev) => prev.filter((f) => f.id !== fileId));
-                addToast('Файл удалён', '', 'success');
             } else {
                 addToast('Ошибка удаления', 'Не удалось удалить файл', 'danger');
             }
