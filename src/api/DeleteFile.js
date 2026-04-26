@@ -1,13 +1,12 @@
 import axios from 'axios';
-import { refreshToken } from './GetToken';
+import { refreshToken, getAuthHeaders } from './GetToken';
 import { getApiBaseUrl } from '../config';
 
 export const deleteFile = async (fileId, navigate) => {
     const url = getApiBaseUrl() + `/files/${fileId}`;
-    const accessToken = localStorage.getItem('access_token');
     try {
         await axios.delete(url, {
-            headers: { Authorization: `Bearer ${accessToken}` },
+            headers: getAuthHeaders(),
         });
         return true;
     } catch (error) {

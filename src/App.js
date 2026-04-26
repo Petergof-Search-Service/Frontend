@@ -5,6 +5,7 @@ import ChatComponent from "./components/Chat";
 import CreateIndex from "./components/CreateIndex";
 import OcrUpload from "./components/OcrUpload";
 import Settings from "./components/Settings";
+import OrgManagement from "./components/OrgManagement";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -58,6 +59,14 @@ function App() {
                     element={
                         <ProtectedRoute>
                             <Settings/>
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/org"
+                    element={
+                        <ProtectedRoute>
+                            <OrgManagement/>
                         </ProtectedRoute>
                     }
                 />

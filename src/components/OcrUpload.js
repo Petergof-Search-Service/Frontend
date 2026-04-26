@@ -4,7 +4,8 @@ import {
     ProgressBar, Spinner, Table, Toast, ToastContainer,
 } from 'react-bootstrap';
 import Navbar from './Navbar';
-import { isAdmin } from '../api/IsAdmin';
+import { isAdmin, isOwner } from '../api/IsAdmin';
+import { refreshUserOrg } from '../api/GetToken';
 import { useNavigate } from 'react-router-dom';
 import { uploadFile } from '../api/UploadFile';
 import { getUploadedFiles } from '../api/GetUploadedFiles';
@@ -47,6 +48,7 @@ const OcrUpload = () => {
     const [uploadProgress, setUploadProgress] = useState(null);
     const [error, setError]                 = useState(null);
     const [isAdminUser, setIsAdminUser]     = useState(false);
+    const [isOwnerUser, setIsOwnerUser]     = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
     const [files, setFiles]                 = useState([]);         // list[FileRecord]
     const [toasts, setToasts]               = useState([]);         // { id, title, body, bg }
@@ -106,8 +108,10 @@ const OcrUpload = () => {
     useEffect(() => {
         const init = async () => {
             try {
-                const admin = await isAdmin(navigate);
+                await refreshUserOrg(navigate);
+                const admin = isAdmin();
                 setIsAdminUser(admin);
+                setIsOwnerUser(isOwner());
                 if (!admin) { navigate('/chat'); return; }
 
                 const data = await getUploadedFiles(navigate);
@@ -198,7 +202,7 @@ const OcrUpload = () => {
 
     return (
         <div className="d-flex flex-column vh-100 bg-light">
-            <Navbar isAdmin={isAdminUser} />
+            <Navbar isAdmin={isAdminUser} isOwner={isOwnerUser} />
 
             {/* Toast container */}
             <ToastContainer position="top-end" className="p-3" style={{ zIndex: 9999 }}>

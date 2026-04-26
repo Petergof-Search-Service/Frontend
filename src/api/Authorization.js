@@ -20,6 +20,15 @@ export const setUser = async (email, password) => {
 
     localStorage.setItem('access_token', response.data.access_token);
     localStorage.setItem('refresh_token', response.data.refresh_token);
+    const firstOrg = response.data.organizations?.[0];
+    const orgs = response.data.organizations || [];
+    if (orgs.length > 0) {
+        localStorage.setItem('org_list', JSON.stringify(orgs));
+        const firstOrg = orgs[0];
+        localStorage.setItem('org_id', firstOrg.id);
+        localStorage.setItem('org_role', firstOrg.role);
+        localStorage.setItem('org_name', firstOrg.name);
+    }
 };
 
 export const registerUser = async (email, password) => {
@@ -36,4 +45,13 @@ export const registerUser = async (email, password) => {
 
     localStorage.setItem('access_token', response.data.access_token);
     localStorage.setItem('refresh_token', response.data.refresh_token);
+    const firstOrg = response.data.organizations?.[0];
+    const orgs = response.data.organizations || [];
+    if (orgs.length > 0) {
+        localStorage.setItem('org_list', JSON.stringify(orgs));
+        const firstOrg = orgs[0];
+        localStorage.setItem('org_id', firstOrg.id);
+        localStorage.setItem('org_role', firstOrg.role);
+        localStorage.setItem('org_name', firstOrg.name);
+    }
 };

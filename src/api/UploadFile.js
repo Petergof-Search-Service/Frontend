@@ -1,13 +1,12 @@
 import axios from 'axios';
-import { refreshToken } from './GetToken';
+import { refreshToken, getAuthHeaders } from './GetToken';
 import { getApiBaseUrl } from '../config';
 import { updateFileStatus } from './UpdateFileStatus';
 
 export const getUploadUrl = async (file, navigate) => {
     const url = getApiBaseUrl() + '/files/upload-link';
-    const accessToken = localStorage.getItem('access_token');
     const response = await axios.post(url, { filename: file.name }, {
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
     });
     return response.data; // { upload_url, s3_key, file_id, expires_in }
 };

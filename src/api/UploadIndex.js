@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { refreshToken } from "./GetToken";
+import { refreshToken, getAuthHeaders } from "./GetToken";
 import { getApiBaseUrl } from '../config';
 
 export const uploadIndexApi = async (file_names, name, navigate) => {
@@ -7,17 +7,12 @@ export const uploadIndexApi = async (file_names, name, navigate) => {
     const uploadURL = base + "/indexes";
     const statusUrl = base + "/indexes/status";
 
-    const accessToken = localStorage.getItem("access_token");
-
     try {
         await axios.post(uploadURL, {
             'name': name,
             'file_names': file_names
         }, {
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            }
+            headers: getAuthHeaders(),
         });
 
         while (true) {
@@ -25,9 +20,7 @@ export const uploadIndexApi = async (file_names, name, navigate) => {
 
             try {
                 const statusResponse = await axios.get(statusUrl, {
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`
-                    }
+                    headers: getAuthHeaders(),
                 });
 
                 if (statusResponse.status === 200 && statusResponse.data.status === "not running") {
