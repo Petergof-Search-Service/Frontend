@@ -31,9 +31,9 @@ const CreateIndex = () => {
                     return;
                 }
                 const filesData = await getFiles(navigate);
-                const filesList = (filesData || []).map((name, index) => ({
-                    id: index + 1,
-                    name: name,
+                const filesList = (filesData || []).map(f => ({
+                    id: f.id,
+                    name: f.name,
                     checked: false
                 }));
                 setFiles(filesList);
@@ -64,7 +64,7 @@ const CreateIndex = () => {
         }
 
         setError(null);
-        const listFiles = selectedFiles.map(file => file.name);
+        const listFiles = selectedFiles.map(file => file.id);
         localStorage.setItem('index_loading', "true");
         setProcessing(true);
         

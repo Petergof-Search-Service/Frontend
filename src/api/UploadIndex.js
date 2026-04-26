@@ -2,7 +2,7 @@ import axios from 'axios';
 import { refreshToken, getAuthHeaders } from "./GetToken";
 import { getApiBaseUrl } from '../config';
 
-export const uploadIndexApi = async (file_names, name, navigate) => {
+export const uploadIndexApi = async (file_ids, name, navigate) => {
     const base = getApiBaseUrl();
     const uploadURL = base + "/indexes";
     const statusUrl = base + "/indexes/status";
@@ -10,7 +10,7 @@ export const uploadIndexApi = async (file_names, name, navigate) => {
     try {
         await axios.post(uploadURL, {
             'name': name,
-            'file_names': file_names
+            'file_ids': file_ids
         }, {
             headers: getAuthHeaders(),
         });
@@ -33,7 +33,7 @@ export const uploadIndexApi = async (file_names, name, navigate) => {
     } catch (error) {
         if (error.response?.status === 401) {
             if (await refreshToken(navigate)) {
-                return await uploadIndexApi(file_names, name, navigate);
+                return await uploadIndexApi(file_ids, name, navigate);
             } else {
                 navigate("/login");
             }
