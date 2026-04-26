@@ -24,6 +24,7 @@ export const setUser = async (email, password) => {
     if (firstOrg) {
         localStorage.setItem('org_id', firstOrg.id);
         localStorage.setItem('org_role', firstOrg.role);
+        localStorage.setItem('org_name', firstOrg.name);
     }
 };
 
@@ -45,5 +46,6 @@ export const registerUser = async (email, password) => {
     if (firstOrg) {
         localStorage.setItem('org_id', firstOrg.id);
         localStorage.setItem('org_role', firstOrg.role);
+        localStorage.setItem('org_name', firstOrg.name);
     }
 };

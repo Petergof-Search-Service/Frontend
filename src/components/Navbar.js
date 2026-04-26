@@ -1,17 +1,21 @@
 import React from 'react';
-import { Navbar as BootstrapNavbar, Nav, Container, Button } from 'react-bootstrap';
+import { Navbar as BootstrapNavbar, Nav, Container, Button, Badge } from 'react-bootstrap';
 import { LinkContainer } from 'react-router-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { MoonFill, SunFill } from 'react-bootstrap-icons';
 
-const Navbar = ({ isAdmin }) => {
+const Navbar = ({ isAdmin, isOwner }) => {
     const navigate = useNavigate();
     const { theme, toggleTheme } = useTheme();
+    const orgName = localStorage.getItem('org_name');
 
     const handleLogout = () => {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
+        localStorage.removeItem('org_id');
+        localStorage.removeItem('org_role');
+        localStorage.removeItem('org_name');
         navigate('/login');
     };
 
@@ -40,8 +44,18 @@ const Navbar = ({ isAdmin }) => {
                                 </LinkContainer>
                             </>
                         )}
+                        {isOwner && (
+                            <LinkContainer to="/org">
+                                <Nav.Link style={{padding: '0.75rem 1rem'}}>Организация</Nav.Link>
+                            </LinkContainer>
+                        )}
                     </Nav>
                     <Nav className="align-items-center gap-2">
+                        {orgName && (
+                            <Badge bg="secondary" style={{fontSize: '0.9rem', padding: '0.4rem 0.7rem'}}>
+                                {orgName}
+                            </Badge>
+                        )}
                         <Button
                             variant="outline-secondary"
                             onClick={toggleTheme}
@@ -62,4 +76,3 @@ const Navbar = ({ isAdmin }) => {
 };
 
 export default Navbar;
-

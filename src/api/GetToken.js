@@ -8,6 +8,7 @@ const clearTokensAndRedirect = (navigate) => {
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('org_id');
     localStorage.removeItem('org_role');
+    localStorage.removeItem('org_name');
     if (typeof navigate === 'function') {
         navigate("/login");
     }
@@ -50,4 +51,26 @@ export const refreshToken = async (navigate) => {
     })();
 
     return await refreshPromise;
+};
+
+export const refreshUserOrg = async (navigate) => {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) return;
+    try {
+        const response = await axios.get(getApiBaseUrl() + '/organizations', {
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        });
+        const orgs = response.data.organizations;
+        if (!orgs || orgs.length === 0) return;
+        const currentOrgId = localStorage.getItem('org_id');
+        const org = orgs.find(o => String(o.id) === currentOrgId) || orgs[0];
+        localStorage.setItem('org_id', String(org.id));
+        localStorage.setItem('org_role', org.role);
+        localStorage.setItem('org_name', org.name);
+    } catch (error) {
+        if (error.response?.status === 401) {
+            if (await refreshToken(navigate)) return await refreshUserOrg(navigate);
+            clearTokensAndRedirect(navigate);
+        }
+    }
 };

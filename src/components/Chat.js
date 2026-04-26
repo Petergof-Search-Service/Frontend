@@ -6,7 +6,8 @@ import CorrectionForm from "../components/CorrectionForm";
 import {sendStatistic} from "../api/SendStatistic";
 import DescriptionWindow from "./DescriptionWindow";
 import {getIndexes} from "../api/GetIndexes";
-import {isAdmin} from "../api/IsAdmin";
+import {isAdmin, isOwner} from "../api/IsAdmin";
+import {refreshUserOrg} from "../api/GetToken";
 import {getHistory} from "../api/GetHistory";
 import {getChats} from "../api/GetChats";
 import {createChat} from "../api/CreateChat";
@@ -33,6 +34,7 @@ const ChatComponent = () => {
         JSON.parse(localStorage.getItem("show_about") || "true")
     );
     const [isAdminUser, setIsAdminUser] = useState(false);
+    const [isOwnerUser, setIsOwnerUser] = useState(false);
     const [error, setError] = useState(null);
     const [historyLoading, setHistoryLoading] = useState(false);
 
@@ -100,7 +102,9 @@ const ChatComponent = () => {
                     localStorage.setItem("chat_selected_index", chosen.id);
                 }
 
+                await refreshUserOrg(navigate);
                 setIsAdminUser(isAdmin());
+                setIsOwnerUser(isOwner());
             } catch {
                 setError("Ошибка загрузки данных. Пожалуйста, обновите страницу.");
             }
@@ -288,7 +292,7 @@ const ChatComponent = () => {
 
     return (
         <div className="d-flex flex-column vh-100" style={{backgroundColor: 'var(--bg-tertiary)'}}>
-            <Navbar isAdmin={isAdminUser} />
+            <Navbar isAdmin={isAdminUser} isOwner={isOwnerUser} />
 
             <div className="d-flex flex-grow-1" style={{overflow: 'hidden'}}>
                 <ChatSidebar

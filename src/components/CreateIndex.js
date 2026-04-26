@@ -3,7 +3,8 @@ import {Button, Form, ListGroup, Container, Spinner, Card, Alert, Badge} from "r
 import {getFiles} from "../api/GetFiles";
 import {useNavigate} from "react-router-dom";
 import Navbar from "./Navbar";
-import {isAdmin} from "../api/IsAdmin";
+import {isAdmin, isOwner} from "../api/IsAdmin";
+import {refreshUserOrg} from "../api/GetToken";
 import {uploadIndexApi} from "../api/UploadIndex";
 import {checkIndexRunning} from "../api/CheckIndexRunning";
 
@@ -15,13 +16,16 @@ const CreateIndex = () => {
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(false);
     const [isAdminUser, setIsAdminUser] = useState(false);
+    const [isOwnerUser, setIsOwnerUser] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
         const fetchFiles = async () => {
             try {
+                await refreshUserOrg(navigate);
                 const is_admin = isAdmin();
                 setIsAdminUser(is_admin);
+                setIsOwnerUser(isOwner());
                 if (!is_admin) {
                     navigate("/chat");
                     return;
@@ -92,7 +96,7 @@ const CreateIndex = () => {
 
     return (
         <div className="d-flex flex-column vh-100 bg-light">
-            <Navbar isAdmin={isAdminUser} />
+            <Navbar isAdmin={isAdminUser} isOwner={isOwnerUser} />
             <Container className="flex-grow-1 py-4">
                 <Card className="shadow-sm">
                     <Card.Header className="bg-primary text-white">

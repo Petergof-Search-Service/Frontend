@@ -2,7 +2,8 @@ import React, {useEffect, useState} from "react";
 import {Form, Container, Button, Card, Spinner, Alert, Badge} from "react-bootstrap";
 import {useNavigate} from "react-router-dom";
 import Navbar from "./Navbar";
-import {isAdmin} from "../api/IsAdmin";
+import {isAdmin, isOwner} from "../api/IsAdmin";
+import {refreshUserOrg} from "../api/GetToken";
 import {getSettings} from "../api/GetSettings";
 import {sendSettings} from "../api/SendSettings";
 
@@ -15,6 +16,7 @@ const Settings = () => {
     });
     const navigate = useNavigate();
     const [isAdminUser, setIsAdminUser] = useState(false);
+    const [isOwnerUser, setIsOwnerUser] = useState(false);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
@@ -23,8 +25,9 @@ const Settings = () => {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const adminStatus = isAdmin();
-                setIsAdminUser(adminStatus);
+                await refreshUserOrg(navigate);
+                setIsAdminUser(isAdmin());
+                setIsOwnerUser(isOwner());
                 
                 const data = await getSettings(navigate);
                 if (data) {
@@ -85,7 +88,7 @@ const Settings = () => {
 
     return (
         <div className="d-flex flex-column vh-100 bg-light">
-            <Navbar isAdmin={isAdminUser} />
+            <Navbar isAdmin={isAdminUser} isOwner={isOwnerUser} />
             <Container className="flex-grow-1 py-4">
                 <Card className="shadow-sm">
                     <Card.Header className="bg-primary text-white">
