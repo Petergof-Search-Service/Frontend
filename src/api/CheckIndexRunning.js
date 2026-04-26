@@ -1,17 +1,13 @@
 import axios from 'axios';
-import { refreshToken } from "./GetToken";
+import { refreshToken, getAuthHeaders } from "./GetToken";
 import { getApiBaseUrl } from '../config';
 
 export const checkIndexRunning = async (navigate) => {
     const askUrl = getApiBaseUrl() + "/indexes/status";
 
-    const accessToken = localStorage.getItem("access_token");
     try {
         const response = await axios.get(askUrl, {
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            }
+            headers: getAuthHeaders(),
         });
 
         localStorage.setItem("index_loading", response.data.status === "still running");

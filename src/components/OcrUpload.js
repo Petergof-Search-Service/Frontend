@@ -106,7 +106,7 @@ const OcrUpload = () => {
     useEffect(() => {
         const init = async () => {
             try {
-                const admin = await isAdmin(navigate);
+                const admin = isAdmin();
                 setIsAdminUser(admin);
                 if (!admin) { navigate('/chat'); return; }
 

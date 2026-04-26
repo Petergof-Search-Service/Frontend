@@ -25,7 +25,7 @@ const ChatComponent = () => {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState("");
     const [asking, setAsking] = useState(false);
-    const [selectIndex, setSelectIndex] = useState("");
+    const [selectIndex, setSelectIndex] = useState(null);
     const [messageForCorrection, setMessageForCorrection] = useState("");
     const [questionForCorrection, setQuestionForCorrection] = useState("");
     const [showCorrectionForm, setShowCorrectionForm] = useState(false);
@@ -92,18 +92,15 @@ const ChatComponent = () => {
                 const data = await getIndexes(navigate);
                 setIndexes(data || []);
 
-                const savedIndex = localStorage.getItem("chat_selected_index");
+                const savedId = localStorage.getItem("chat_selected_index");
                 if (data && data.length > 0) {
-                    if (savedIndex && data.includes(savedIndex)) {
-                        setSelectIndex(savedIndex);
-                    } else {
-                        setSelectIndex(data[0]);
-                        localStorage.setItem("chat_selected_index", data[0]);
-                    }
+                    const saved = savedId ? data.find(i => String(i.id) === savedId) : null;
+                    const chosen = saved || data[0];
+                    setSelectIndex(chosen);
+                    localStorage.setItem("chat_selected_index", chosen.id);
                 }
 
-                const adminStatus = await isAdmin(navigate);
-                setIsAdminUser(adminStatus);
+                setIsAdminUser(isAdmin());
             } catch {
                 setError("Ошибка загрузки данных. Пожалуйста, обновите страницу.");
             }
@@ -120,7 +117,7 @@ const ChatComponent = () => {
     }, [messages, activeChatId]);
 
     useEffect(() => {
-        if (selectIndex) localStorage.setItem("chat_selected_index", selectIndex);
+        if (selectIndex) localStorage.setItem("chat_selected_index", selectIndex.id);
     }, [selectIndex]);
 
     useEffect(() => {
@@ -174,7 +171,7 @@ const ChatComponent = () => {
         setError(null);
 
         try {
-            const response = await askQuestion(selectIndex, inputText, chatId, navigate);
+            const response = await askQuestion(selectIndex?.id, inputText, chatId, navigate);
             const botResponse = {
                 id: Date.now() + 1,
                 text: response.answer,
@@ -435,19 +432,19 @@ const ChatComponent = () => {
                                         fontSize: '1rem',
                                         padding: '0.5rem 1rem'
                                     }}>
-                                        {selectIndex || "Выберите индекс"}
+                                        {selectIndex?.name || "Выберите индекс"}
                                     </Dropdown.Toggle>
                                     <Dropdown.Menu>
                                         {indexes.length === 0 ? (
                                             <Dropdown.Item disabled>Нет доступных индексов</Dropdown.Item>
                                         ) : (
-                                            indexes.map((index) => (
+                                            indexes.map((idx) => (
                                                 <Dropdown.Item
-                                                    key={index}
-                                                    onClick={() => setSelectIndex(index)}
-                                                    active={selectIndex === index}
+                                                    key={idx.id}
+                                                    onClick={() => setSelectIndex(idx)}
+                                                    active={selectIndex?.id === idx.id}
                                                 >
-                                                    {index}
+                                                    {idx.name}
                                                 </Dropdown.Item>
                                             ))
                                         )}
@@ -480,7 +477,7 @@ const ChatComponent = () => {
                         {selectIndex && (
                             <div className="mt-2">
                                 <Badge bg="info" className="text-white" style={{fontSize: '0.9rem', padding: '0.4rem 0.8rem'}}>
-                                    Индекс: {selectIndex}
+                                    Индекс: {selectIndex?.name}
                                 </Badge>
                             </div>
                         )}

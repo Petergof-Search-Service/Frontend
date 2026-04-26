@@ -23,7 +23,7 @@ const Settings = () => {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const adminStatus = await isAdmin(navigate);
+                const adminStatus = isAdmin();
                 setIsAdminUser(adminStatus);
                 
                 const data = await getSettings(navigate);

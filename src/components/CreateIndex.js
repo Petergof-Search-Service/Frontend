@@ -20,7 +20,7 @@ const CreateIndex = () => {
     useEffect(() => {
         const fetchFiles = async () => {
             try {
-                const is_admin = await isAdmin(navigate);
+                const is_admin = isAdmin();
                 setIsAdminUser(is_admin);
                 if (!is_admin) {
                     navigate("/chat");
