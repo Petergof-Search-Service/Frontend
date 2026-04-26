@@ -8,6 +8,7 @@ import { isAdmin } from '../api/IsAdmin';
 import { useNavigate } from 'react-router-dom';
 import { uploadFile } from '../api/UploadFile';
 import { getUploadedFiles } from '../api/GetUploadedFiles';
+import { deleteFile } from '../api/DeleteFile';
 import { getApiBaseUrl } from '../config';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -49,6 +50,7 @@ const OcrUpload = () => {
     const [initialLoading, setInitialLoading] = useState(true);
     const [files, setFiles]                 = useState([]);         // list[FileRecord]
     const [toasts, setToasts]               = useState([]);         // { id, title, body, bg }
+    const [deletingId, setDeletingId]       = useState(null);
     const wsRef                             = useRef(null);
     const navigate                          = useNavigate();
 
@@ -122,6 +124,25 @@ const OcrUpload = () => {
             if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
         };
     }, [navigate, connectWs]);
+
+    // ── delete ──
+    const handleDelete = async (fileId) => {
+        if (!window.confirm('Удалить файл? Это действие нельзя отменить.')) return;
+        setDeletingId(fileId);
+        try {
+            const ok = await deleteFile(fileId, navigate);
+            if (ok) {
+                setFiles((prev) => prev.filter((f) => f.id !== fileId));
+                addToast('Файл удалён', '', 'success');
+            } else {
+                addToast('Ошибка удаления', 'Не удалось удалить файл', 'danger');
+            }
+        } catch {
+            addToast('Ошибка удаления', 'Не удалось удалить файл', 'danger');
+        } finally {
+            setDeletingId(null);
+        }
+    };
 
     // ── file input ──
     const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024;
@@ -263,6 +284,7 @@ const OcrUpload = () => {
                                         <th>Файл</th>
                                         <th>Статус</th>
                                         <th>Загружен</th>
+                                        <th></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -276,6 +298,18 @@ const OcrUpload = () => {
                                             </td>
                                             <td>{statusBadge(f.status)}</td>
                                             <td><small>{fmtDate(f.created_at)}</small></td>
+                                            <td>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline-danger"
+                                                    onClick={() => handleDelete(f.id)}
+                                                    disabled={deletingId === f.id}
+                                                >
+                                                    {deletingId === f.id
+                                                        ? <Spinner animation="border" size="sm" />
+                                                        : 'Удалить'}
+                                                </Button>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
