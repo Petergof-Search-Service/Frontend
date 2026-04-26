@@ -6,17 +6,21 @@ import CreateIndex from "./components/CreateIndex";
 import OcrUpload from "./components/OcrUpload";
 import Settings from "./components/Settings";
 import ProtectedRoute from "./components/ProtectedRoute";
+import PublicRoute from "./components/PublicRoute";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
-function App() {
+const CatchAllRoute = () => {
     const isAuthenticated = localStorage.getItem("access_token") && localStorage.getItem("refresh_token");
+    return <Navigate to={isAuthenticated ? "/chat" : "/login"} replace/>;
+};
 
+function App() {
     return (
         <ThemeProvider>
             <Router>
                 <Routes>
-                <Route path="/login" element={isAuthenticated ? <Navigate to="/chat" replace /> : <LoginForm/>}/>
-                <Route path="/register" element={isAuthenticated ? <Navigate to="/chat" replace /> : <RegisterForm/>}/>
+                <Route path="/login" element={<PublicRoute><LoginForm/></PublicRoute>}/>
+                <Route path="/register" element={<PublicRoute><RegisterForm/></PublicRoute>}/>
                 <Route
                     path="/chat"
                     element={
@@ -57,7 +61,7 @@ function App() {
                         </ProtectedRoute>
                     }
                 />
-                <Route path="*" element={<Navigate to={isAuthenticated ? "/chat" : "/login"} replace/>}/>
+                <Route path="*" element={<CatchAllRoute />}/>
                 </Routes>
             </Router>
         </ThemeProvider>

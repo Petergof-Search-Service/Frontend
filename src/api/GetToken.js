@@ -9,7 +9,6 @@ const clearTokensAndRedirect = (navigate) => {
     if (typeof navigate === 'function') {
         navigate("/login");
     }
-    window.location.replace("/login");
 };
 
 export const refreshToken = async (navigate) => {
