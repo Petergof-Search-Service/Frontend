@@ -5,31 +5,12 @@ import { getApiBaseUrl } from '../config';
 export const uploadIndexApi = async (file_ids, name, navigate) => {
     const base = getApiBaseUrl();
     const uploadURL = base + "/indexes";
-    const statusUrl = base + "/indexes/status";
 
     try {
-        await axios.post(uploadURL, {
-            'name': name,
-            'file_ids': file_ids
-        }, {
+        await axios.post(uploadURL, { name, file_ids }, {
             headers: getAuthHeaders(),
         });
-
-        while (true) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            try {
-                const statusResponse = await axios.get(statusUrl, {
-                    headers: getAuthHeaders(),
-                });
-
-                if (statusResponse.status === 200 && statusResponse.data.status === "not running") {
-                    return true;
-                }
-            } catch (statusError) {
-                break
-            }
-        }
+        return true;
     } catch (error) {
         if (error.response?.status === 401) {
             if (await refreshToken(navigate)) {
@@ -39,6 +20,7 @@ export const uploadIndexApi = async (file_ids, name, navigate) => {
             }
         } else {
             console.error('Ошибка API:', error.response?.data || error.message);
+            throw error;
         }
     }
 };
