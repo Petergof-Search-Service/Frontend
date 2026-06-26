@@ -43,9 +43,10 @@ const WS_URL = () => {
 // ─── component ──────────────────────────────────────────────────────────────
 
 const OcrUpload = () => {
-    const [file, setFile]                   = useState(null);
+    const [selectedFiles, setSelectedFiles] = useState([]);        // list[File]
     const [loading, setLoading]             = useState(false);
     const [uploadProgress, setUploadProgress] = useState(null);
+    const [batchInfo, setBatchInfo]         = useState(null);      // { current, total, name }
     const [error, setError]                 = useState(null);
     const [isAdminUser, setIsAdminUser]     = useState(false);
     const [isOwnerUser, setIsOwnerUser]     = useState(false);
@@ -151,44 +152,65 @@ const OcrUpload = () => {
     const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024;
 
     const handleFileChange = (e) => {
-        const f = e.target.files[0];
-        if (!f) return;
-        if (f.type !== 'application/pdf') { setError('Пожалуйста, выберите PDF файл'); setFile(null); return; }
-        if (f.size > MAX_FILE_SIZE) { setError('Размер файла не должен превышать 5 ГБ'); setFile(null); return; }
-        setFile(f);
-        setError(null);
+        const picked = Array.from(e.target.files || []);
+        if (picked.length === 0) { setSelectedFiles([]); return; }
+
+        const valid = [];
+        const rejected = [];
+        for (const f of picked) {
+            if (f.type !== 'application/pdf') { rejected.push(`${f.name} — не PDF`); continue; }
+            if (f.size > MAX_FILE_SIZE) { rejected.push(`${f.name} — больше 5 ГБ`); continue; }
+            valid.push(f);
+        }
+        setSelectedFiles(valid);
+        setError(rejected.length ? `Пропущены файлы: ${rejected.join('; ')}` : null);
     };
 
     // ── submit ──
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!file) { setError('Пожалуйста, выберите файл'); return; }
+        const form = e.target;
+        if (selectedFiles.length === 0) { setError('Пожалуйста, выберите файл'); return; }
 
         setLoading(true);
-        setUploadProgress(0);
         setError(null);
 
-        try {
-            const fileId = await uploadFile(file, navigate, (pct) => setUploadProgress(pct));
+        const total = selectedFiles.length;
+        const failed = [];
 
-            // optimistically add to list (WS will update status further)
-            setFiles((prev) => {
-                if (prev.find((f) => f.id === fileId)) return prev;
-                return [
-                    { id: fileId, original_filename: file.name, display_name: null, status: 'uploaded',
-                      error_message: null, created_at: new Date().toISOString() },
-                    ...prev,
-                ];
-            });
+        // Загружаем по очереди, чтобы не перегружать сеть большими PDF и видеть прогресс по каждому
+        for (let i = 0; i < total; i++) {
+            const current = selectedFiles[i];
+            setBatchInfo({ current: i + 1, total, name: current.name });
+            setUploadProgress(0);
+            try {
+                const fileId = await uploadFile(current, navigate, (pct) => setUploadProgress(pct));
 
-            setFile(null);
-            e.target.reset();
-        } catch (err) {
-            setError(err.message || 'Ошибка загрузки файла');
-        } finally {
-            setLoading(false);
-            setUploadProgress(null);
+                // optimistically add to list (WS will update status further)
+                setFiles((prev) => {
+                    if (prev.find((f) => f.id === fileId)) return prev;
+                    return [
+                        { id: fileId, original_filename: current.name, display_name: null, status: 'uploaded',
+                          error_message: null, created_at: new Date().toISOString() },
+                        ...prev,
+                    ];
+                });
+            } catch (err) {
+                failed.push(`${current.name}: ${err.message || 'ошибка загрузки'}`);
+            }
         }
+
+        const ok = total - failed.length;
+        if (ok > 0) {
+            addToast('Загрузка завершена', `Отправлено файлов: ${ok} из ${total}`, failed.length ? 'warning' : 'success');
+        }
+        if (failed.length) setError(`Не удалось загрузить: ${failed.join('; ')}`);
+
+        setSelectedFiles([]);
+        form.reset();
+        setLoading(false);
+        setUploadProgress(null);
+        setBatchInfo(null);
     };
 
     // ── render ──
@@ -218,7 +240,7 @@ const OcrUpload = () => {
                 {/* Upload card */}
                 <Card className="shadow-sm mb-4">
                     <Card.Header className="bg-primary text-white">
-                        <h4 className="mb-0">Загрузка файла</h4>
+                        <h4 className="mb-0">Загрузка файлов</h4>
                     </Card.Header>
                     <Card.Body className="p-4">
                         {error && (
@@ -226,25 +248,39 @@ const OcrUpload = () => {
                         )}
                         <Form onSubmit={handleSubmit}>
                             <Form.Group controlId="formFile" className="mb-4">
-                                <Form.Label className="fw-semibold">Выберите PDF файл</Form.Label>
+                                <Form.Label className="fw-semibold">Выберите PDF файлы</Form.Label>
                                 <Form.Control
                                     type="file"
                                     accept=".pdf,application/pdf"
+                                    multiple
                                     onChange={handleFileChange}
                                     disabled={loading}
                                 />
                                 <Form.Text className="text-muted">
-                                    Максимальный размер файла: 5 ГБ. Поддерживаются только PDF файлы.
+                                    Можно выбрать несколько файлов сразу. Максимальный размер файла: 5 ГБ. Поддерживаются только PDF файлы.
                                 </Form.Text>
-                                {file && (
+                                {selectedFiles.length > 0 && (
                                     <Alert variant="info" className="mt-2 mb-0">
-                                        <strong>{file.name}</strong>
-                                        <br />
-                                        <small>{(file.size / 1024 / 1024).toFixed(2)} МБ</small>
+                                        <strong>Выбрано файлов: {selectedFiles.length}</strong>
+                                        <ul className="mb-0 mt-1 ps-3">
+                                            {selectedFiles.map((f, i) => (
+                                                <li key={i}>
+                                                    {f.name}{' '}
+                                                    <small className="text-muted">({(f.size / 1024 / 1024).toFixed(2)} МБ)</small>
+                                                </li>
+                                            ))}
+                                        </ul>
                                     </Alert>
                                 )}
                                 {loading && uploadProgress !== null && (
                                     <div className="mt-3">
+                                        {batchInfo && (
+                                            <div className="mb-1">
+                                                <small className="text-muted">
+                                                    Файл {batchInfo.current} из {batchInfo.total}: {batchInfo.name}
+                                                </small>
+                                            </div>
+                                        )}
                                         <ProgressBar
                                             now={uploadProgress}
                                             label={`${uploadProgress}%`}
@@ -258,8 +294,10 @@ const OcrUpload = () => {
                                     </div>
                                 )}
                             </Form.Group>
-                            <Button type="submit" variant="primary" disabled={loading || !file} size="lg" className="w-100">
-                                {loading ? <><Spinner animation="border" size="sm" className="me-2" />Загрузка...</> : 'Загрузить файл'}
+                            <Button type="submit" variant="primary" disabled={loading || selectedFiles.length === 0} size="lg" className="w-100">
+                                {loading
+                                    ? <><Spinner animation="border" size="sm" className="me-2" />Загрузка{batchInfo ? ` ${batchInfo.current}/${batchInfo.total}` : ''}...</>
+                                    : `Загрузить ${selectedFiles.length > 1 ? `файлы (${selectedFiles.length})` : 'файл'}`}
                             </Button>
                         </Form>
                     </Card.Body>
