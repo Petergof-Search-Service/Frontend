@@ -15,6 +15,27 @@ import {deleteChat} from "../api/DeleteChat";
 import Navbar from "./Navbar";
 import ChatSidebar from "./ChatSidebar";
 import { InfoCircle, ChevronDown, ChevronUp } from "react-bootstrap-icons";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+// Ответ бота рендерится как markdown (GFM: списки, таблицы, код, ссылки).
+// Сырой HTML не рендерится (поведение react-markdown по умолчанию) — XSS-безопасно.
+const MarkdownContent = ({ text }) => (
+    <div className="markdown-body">
+        <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+                a: ({ node, children, ...props }) => (
+                    <a {...props} target="_blank" rel="noopener noreferrer">
+                        {children}
+                    </a>
+                ),
+            }}
+        >
+            {text || ""}
+        </ReactMarkdown>
+    </div>
+);
 
 const ChatComponent = () => {
     const navigate = useNavigate();
@@ -22,6 +43,9 @@ const ChatComponent = () => {
     const activeChatId = chatIdParam ? parseInt(chatIdParam, 10) : null;
 
     const messagesEndRef = useRef(null);
+    // id чата, который только что создан из первого сообщения: для него история
+    // уже в state, поэтому эффект смены чата не должен её сбрасывать/перезагружать
+    const skipHistoryLoadRef = useRef(null);
     const [indexes, setIndexes] = useState([]);
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState("");
@@ -64,6 +88,13 @@ const ChatComponent = () => {
     useEffect(() => {
         if (!activeChatId) {
             setMessages([]);
+            return;
+        }
+
+        // Чат только что создан из первого сообщения — сообщения уже в state,
+        // истории на сервере ещё нет, поэтому ничего не сбрасываем и не грузим
+        if (skipHistoryLoadRef.current === activeChatId) {
+            skipHistoryLoadRef.current = null;
             return;
         }
 
@@ -157,19 +188,27 @@ const ChatComponent = () => {
         if (!selectIndex) { setError("Пожалуйста, выберите индекс"); return; }
 
         let chatId = activeChatId;
-        let isNewChat = false;
         const inputText = input.trim();
+        const newTitle = inputText.slice(0, 60);
+        const userMessage = {id: Date.now(), text: inputText, sender: "user"};
 
         if (!chatId) {
             const newChat = await createChat(navigate);
             if (!newChat) { setError("Не удалось создать чат"); return; }
             chatId = newChat.id;
-            isNewChat = true;
-            setChats(prev => [newChat, ...prev]);
+
+            // Заголовок чата сразу = текст первого сообщения (не "Новый чат")
+            setChats(prev => [{ ...newChat, title: newTitle }, ...prev]);
+
+            // Показываем сообщение и переходим в чат немедленно, не дожидаясь ответа.
+            // skipHistoryLoadRef не даёт эффекту смены чата стереть это сообщение.
+            skipHistoryLoadRef.current = chatId;
+            setMessages([userMessage]);
+            navigate(`/chat/${chatId}`, { replace: true });
+        } else {
+            setMessages(prev => [...prev, userMessage]);
         }
 
-        const userMessage = {id: Date.now(), text: inputText, sender: "user"};
-        setMessages(prev => [...prev, userMessage]);
         setInput("");
         setAsking(true);
         setError(null);
@@ -185,18 +224,13 @@ const ChatComponent = () => {
             };
             setMessages(prev => [...prev, botResponse]);
 
+            // Для чата, созданного кнопкой «Новый чат», заголовок ещё "Новый чат" —
+            // обновляем его по первому вопросу
             setChats(prev => prev.map(c =>
                 c.id === chatId && c.title === "Новый чат"
-                    ? { ...c, title: inputText.slice(0, 60) }
+                    ? { ...c, title: newTitle }
                     : c
             ));
-
-            if (isNewChat) {
-                // Записываем в localStorage до навигации — эффект загрузки истории
-                // найдёт сообщения и не будет делать лишний запрос к серверу
-                localStorage.setItem(`chat_messages_${chatId}`, JSON.stringify([userMessage, botResponse]));
-                navigate(`/chat/${chatId}`, { replace: true });
-            }
         } catch {
             setError("Ошибка при отправке вопроса. Попробуйте еще раз.");
             setMessages(prev => prev.filter(msg => msg.id !== userMessage.id));
@@ -242,16 +276,15 @@ const ChatComponent = () => {
             </React.Fragment>
         ));
 
+        // Сообщения пользователя оставляем простым текстом с переносами строк
         if (!isBot) return formatLines(text);
 
-        const formattedAnswer = formatLines(text || "");
+        // Ответ бота — markdown; источники по-прежнему уходят под кат (спойлер)
         const trimmedContext = (context || "").trim();
-        if (!trimmedContext) return formattedAnswer;
-
         return (
             <>
-                {formattedAnswer}
-                <SpoilerContent content={formatLines(trimmedContext)} />
+                <MarkdownContent text={text} />
+                {trimmedContext && <SpoilerContent content={formatLines(trimmedContext)} />}
             </>
         );
     };
@@ -353,7 +386,7 @@ const ChatComponent = () => {
                                     >
                                         <Card.Body className="p-2">
                                             <div className="d-flex justify-content-between align-items-start gap-2">
-                                                <div className="flex-grow-1" style={{whiteSpace: 'pre-wrap', wordBreak: 'break-word'}}>
+                                                <div className="flex-grow-1" style={{whiteSpace: msg.sender === "user" ? 'pre-wrap' : 'normal', wordBreak: 'break-word'}}>
                                                     {formatMessage(msg.text, msg.sender === "bot", msg.context)}
                                                 </div>
                                                 {msg.sender === "bot" && (
