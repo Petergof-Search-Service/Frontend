@@ -386,7 +386,7 @@ const ChatComponent = () => {
                                     >
                                         <Card.Body className="p-2">
                                             <div className="d-flex justify-content-between align-items-start gap-2">
-                                                <div className="flex-grow-1" style={{whiteSpace: 'pre-wrap', wordBreak: 'break-word'}}>
+                                                <div className="flex-grow-1" style={{whiteSpace: msg.sender === "user" ? 'pre-wrap' : 'normal', wordBreak: 'break-word'}}>
                                                     {formatMessage(msg.text, msg.sender === "bot", msg.context)}
                                                 </div>
                                                 {msg.sender === "bot" && (
