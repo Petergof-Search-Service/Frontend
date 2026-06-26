@@ -62,6 +62,11 @@ export const doThing = async (...args, navigate) => {
 - Бэкенд создаёт чат с заголовком «Новый чат»; фронт переименовывает его по первому вопросу (для чатов, созданных кнопкой «Новый чат», — после ответа; для созданных из сообщения — сразу).
 - `selectIndex` (выбранный индекс RAG) персистится в `localStorage` (`chat_selected_index`). Без выбранного индекса отправка заблокирована.
 - Лайк/дизлайк ответа шлёт `sendStatistic`; дизлайк открывает `CorrectionForm`.
+- **Рендеринг сообщений** (`formatMessage`): ответ бота отображается как **markdown** через `react-markdown` + `remark-gfm` (компонент `MarkdownContent`, стили в `.markdown-body` в `index.css`). Сырой HTML не рендерится (XSS-безопасно по умолчанию), ссылки открываются в новой вкладке. Сообщения пользователя — простой текст с переносами строк. Источники (`context`) уходят под кат (`SpoilerContent`, спойлер «Подробнее об источниках»).
+
+## Gotcha: ESM-пакеты и Jest (CRA)
+
+`react-markdown`/`remark-gfm` (и вся их зависимость-цепочка micromark/mdast/unist) — **ESM-only**. CRA-сборка (webpack) их переваривает, но `react-scripts test` (Jest) по умолчанию **не трансформирует** ESM из `node_modules` → любой тест, который через импорты дотягивается до такого пакета, падает с `SyntaxError: Unexpected token 'export'`. Здесь это решено мок-заглушками: `src/tests/__mocks__/{react-markdown,remark-gfm}.js` + `moduleNameMapper` в `jest`-блоке `package.json` (обрывает ESM-цепочку на верхнем уровне, т.к. в `Chat.js` импортируются только эти два пакета). Добавляешь новый ESM-пакет, используемый в компонентах, — либо замокай его так же, либо расширь `transformIgnorePatterns`.
 
 ## Чего избегать
 

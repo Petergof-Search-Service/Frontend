@@ -15,6 +15,27 @@ import {deleteChat} from "../api/DeleteChat";
 import Navbar from "./Navbar";
 import ChatSidebar from "./ChatSidebar";
 import { InfoCircle, ChevronDown, ChevronUp } from "react-bootstrap-icons";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+// Ответ бота рендерится как markdown (GFM: списки, таблицы, код, ссылки).
+// Сырой HTML не рендерится (поведение react-markdown по умолчанию) — XSS-безопасно.
+const MarkdownContent = ({ text }) => (
+    <div className="markdown-body">
+        <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+                a: ({ node, children, ...props }) => (
+                    <a {...props} target="_blank" rel="noopener noreferrer">
+                        {children}
+                    </a>
+                ),
+            }}
+        >
+            {text || ""}
+        </ReactMarkdown>
+    </div>
+);
 
 const ChatComponent = () => {
     const navigate = useNavigate();
@@ -255,16 +276,15 @@ const ChatComponent = () => {
             </React.Fragment>
         ));
 
+        // Сообщения пользователя оставляем простым текстом с переносами строк
         if (!isBot) return formatLines(text);
 
-        const formattedAnswer = formatLines(text || "");
+        // Ответ бота — markdown; источники по-прежнему уходят под кат (спойлер)
         const trimmedContext = (context || "").trim();
-        if (!trimmedContext) return formattedAnswer;
-
         return (
             <>
-                {formattedAnswer}
-                <SpoilerContent content={formatLines(trimmedContext)} />
+                <MarkdownContent text={text} />
+                {trimmedContext && <SpoilerContent content={formatLines(trimmedContext)} />}
             </>
         );
     };
