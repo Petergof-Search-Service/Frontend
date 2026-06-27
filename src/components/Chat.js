@@ -385,12 +385,12 @@ const ChatComponent = () => {
                                         }}
                                     >
                                         <Card.Body className="p-2">
-                                            <div className="d-flex justify-content-between align-items-start gap-2">
-                                                <div className="flex-grow-1" style={{whiteSpace: msg.sender === "user" ? 'pre-wrap' : 'normal', wordBreak: 'break-word'}}>
-                                                    {formatMessage(msg.text, msg.sender === "bot", msg.context)}
-                                                </div>
-                                                {msg.sender === "bot" && (
-                                                    <ButtonGroup size="sm" className="flex-shrink-0">
+                                            <div style={{whiteSpace: msg.sender === "user" ? 'pre-wrap' : 'normal', wordBreak: 'break-word'}}>
+                                                {formatMessage(msg.text, msg.sender === "bot", msg.context)}
+                                            </div>
+                                            {msg.sender === "bot" && (
+                                                <div className="d-flex justify-content-end mt-2">
+                                                    <ButtonGroup size="sm">
                                                         <Button
                                                             variant={msg.liked === true ? "success" : "outline-success"}
                                                             onClick={() => handleLike(msg.id, true)}
@@ -408,8 +408,8 @@ const ChatComponent = () => {
                                                             👎
                                                         </Button>
                                                     </ButtonGroup>
-                                                )}
-                                            </div>
+                                                </div>
+                                            )}
                                         </Card.Body>
                                     </Card>
                                 </div>

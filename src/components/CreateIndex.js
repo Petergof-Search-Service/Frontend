@@ -166,12 +166,16 @@ const CreateIndex = () => {
                                             style={{ cursor: "pointer" }}
                                             onClick={() => toggleFile(file.id)}
                                         >
+                                            {/* Переключение делает только строка (onClick выше).
+                                                Сам чекбокс — визуальный (readOnly), pointer-events:none,
+                                                чтобы клик по квадратику не вызывал toggle дважды. */}
                                             <Form.Check
                                                 type="checkbox"
                                                 label={file.name}
                                                 checked={file.checked}
-                                                onChange={() => toggleFile(file.id)}
+                                                readOnly
                                                 className="flex-grow-1"
+                                                style={{ pointerEvents: "none" }}
                                             />
                                         </ListGroup.Item>
                                     ))}
