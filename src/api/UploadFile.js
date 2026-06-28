@@ -50,14 +50,14 @@ export const uploadFile = async (file, navigate, onProgress) => {
         const { upload_url: uploadUrl, file_id: fileId } = data;
         if (!uploadUrl) throw new Error('Бэкенд не вернул URL загрузки');
 
-        await updateFileStatus(fileId, 'uploading');
+        await updateFileStatus(fileId, 'uploading', null, navigate);
         try {
             await uploadToS3(file, uploadUrl, onProgress);
         } catch (err) {
-            await updateFileStatus(fileId, 'failed', err.message);
+            await updateFileStatus(fileId, 'failed', err.message, navigate);
             throw err;
         }
-        await updateFileStatus(fileId, 'uploaded');
+        await updateFileStatus(fileId, 'uploaded', null, navigate);
         return fileId;
     };
 
