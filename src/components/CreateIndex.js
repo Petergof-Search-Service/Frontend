@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
     Alert, Badge, Button, Card, Container, Form,
     ListGroup, Spinner, Table, Toast, ToastContainer,
@@ -10,27 +10,50 @@ import { refreshUserOrg } from "../api/GetToken";
 import { uploadIndexApi } from "../api/UploadIndex";
 import { getFiles } from "../api/GetFiles";
 import { getIndexes } from "../api/GetIndexes";
-import { getApiBaseUrl } from "../config";
+import { deleteIndex } from "../api/DeleteIndex";
 
 const fmtDate = (iso) =>
     iso ? new Date(iso).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" }) : "—";
 
-const WS_URL = () => {
-    const base = getApiBaseUrl().replace(/^http/, "ws").replace("/api/v1", "");
-    const token = localStorage.getItem("access_token");
-    return `${base}/api/v1/ws?token=${token}`;
+// Интервал опроса статуса сборки, мс. Индекс строится минуты—часы на стороне
+// AI Studio; фронт просто периодически перечитывает список, пока есть building.
+const POLL_INTERVAL_MS = 4000;
+
+const StatusBadge = ({ status, progress, error }) => {
+    if (status === "building") {
+        const p = progress && progress.total ? ` ${progress.completed}/${progress.total}` : "";
+        return (
+            <Badge bg="warning" text="dark">
+                <Spinner
+                    animation="border"
+                    size="sm"
+                    className="me-1"
+                    style={{ width: "0.7rem", height: "0.7rem", borderWidth: "0.15em" }}
+                />
+                Создаётся{p}
+            </Badge>
+        );
+    }
+    if (status === "ready") return <Badge bg="success">Готов</Badge>;
+    if (status === "failed") {
+        return (
+            <Badge bg="danger" title={error || "Ошибка сборки"}>
+                Ошибка
+            </Badge>
+        );
+    }
+    return <Badge bg="secondary">{status || "—"}</Badge>;
 };
 
 const CreateIndex = () => {
     const [files, setFiles]             = useState([]);
     const [indexes, setIndexes]         = useState([]);
-    const [processing, setProcessing]   = useState(false);
+    const [creating, setCreating]       = useState(false);
     const [input, setInput]             = useState("");
     const [loading, setLoading]         = useState(true);
     const [toasts, setToasts]           = useState([]);
     const [isAdminUser, setIsAdminUser] = useState(false);
     const [isOwnerUser, setIsOwnerUser] = useState(false);
-    const wsRef                         = useRef(null);
     const navigate                      = useNavigate();
 
     const addToast = useCallback((title, body, bg = "primary") => {
@@ -39,40 +62,10 @@ const CreateIndex = () => {
         setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 5000);
     }, []);
 
-    const applyIndexStatus = useCallback(({ status, index, error }) => {
-        if (status === "running") {
-            setProcessing(true);
-        } else if (status === "done") {
-            setProcessing(false);
-            if (index) setIndexes((prev) => [index, ...prev]);
-            addToast("Индекс создан", `«${index?.name}» успешно создан`, "success");
-        } else if (status === "error") {
-            setProcessing(false);
-            addToast("Ошибка создания индекса", error || "Неизвестная ошибка", "danger");
-        }
-    }, [addToast]);
-
-    const connectWs = useCallback(() => {
-        const ws = new WebSocket(WS_URL());
-        wsRef.current = ws;
-
-        ws.onmessage = (e) => {
-            try {
-                const msg = JSON.parse(e.data);
-                if (msg.type === "index_status") applyIndexStatus(msg);
-            } catch (_) {}
-        };
-
-        const ping = setInterval(() => {
-            if (ws.readyState === WebSocket.OPEN) ws.send("ping");
-        }, 25000);
-
-        ws.onclose = (e) => {
-            clearInterval(ping);
-            if (e.code === 4001) { navigate("/login"); return; }
-            setTimeout(() => { if (wsRef.current === ws) connectWs(); }, 3000);
-        };
-    }, [applyIndexStatus, navigate]);
+    const reloadIndexes = useCallback(async () => {
+        const d = await getIndexes(navigate);
+        if (d) setIndexes(d);
+    }, [navigate]);
 
     useEffect(() => {
         const init = async () => {
@@ -89,7 +82,6 @@ const CreateIndex = () => {
                 ]);
                 setFiles((filesData || []).map((f) => ({ ...f, checked: false })));
                 setIndexes(indexesData || []);
-                connectWs();
             } catch {
                 addToast("Ошибка", "Ошибка загрузки данных", "danger");
             } finally {
@@ -97,10 +89,16 @@ const CreateIndex = () => {
             }
         };
         init();
-        return () => {
-            if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
-        };
-    }, [navigate, connectWs, addToast]);
+    }, [navigate, addToast]);
+
+    // Пока есть строящиеся индексы — периодически перечитываем список.
+    // Как только building не осталось, интервал очищается.
+    const hasBuilding = indexes.some((i) => i.status === "building");
+    useEffect(() => {
+        if (!hasBuilding) return;
+        const timer = setInterval(reloadIndexes, POLL_INTERVAL_MS);
+        return () => clearInterval(timer);
+    }, [hasBuilding, reloadIndexes]);
 
     const toggleFile = (id) =>
         setFiles((prev) => prev.map((f) => f.id === id ? { ...f, checked: !f.checked } : f));
@@ -109,12 +107,28 @@ const CreateIndex = () => {
         const selectedIds = files.filter((f) => f.checked).map((f) => f.id);
         if (selectedIds.length === 0 || !input.trim()) return;
 
+        setCreating(true);
         try {
             await uploadIndexApi(selectedIds, input.trim(), navigate);
             setInput("");
             setFiles((prev) => prev.map((f) => ({ ...f, checked: false })));
+            addToast("Индекс создаётся", "Сборка запущена, статус обновится автоматически", "info");
+            await reloadIndexes();
         } catch {
-            addToast("Ошибка", "Не удалось отправить запрос на создание индекса", "danger");
+            addToast("Ошибка", "Не удалось запустить создание индекса", "danger");
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    const handleDelete = async (idx) => {
+        if (!window.confirm(`Удалить индекс «${idx.name}»?`)) return;
+        const ok = await deleteIndex(idx.id, navigate);
+        if (ok) {
+            setIndexes((prev) => prev.filter((i) => i.id !== idx.id));
+            addToast("Индекс удалён", `«${idx.name}» удалён`, "success");
+        } else {
+            addToast("Ошибка", "Не удалось удалить индекс", "danger");
         }
     };
 
@@ -190,19 +204,19 @@ const CreateIndex = () => {
                                 placeholder="Введите название индекса"
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
-                                disabled={processing}
+                                disabled={creating}
                             />
                         </Form.Group>
 
                         <Button
                             onClick={handleCreate}
-                            disabled={processing || selectedCount === 0 || !input.trim()}
+                            disabled={creating || selectedCount === 0 || !input.trim()}
                             variant="primary"
                             size="lg"
                             className="w-100"
                         >
-                            {processing ? (
-                                <><Spinner animation="border" size="sm" className="me-2" />Создание индекса...</>
+                            {creating ? (
+                                <><Spinner animation="border" size="sm" className="me-2" />Запуск сборки...</>
                             ) : (
                                 "Создать индекс"
                             )}
@@ -214,11 +228,7 @@ const CreateIndex = () => {
                 <Card className="shadow-sm">
                     <Card.Header className="bg-secondary text-white d-flex justify-content-between align-items-center">
                         <h5 className="mb-0">Индексы</h5>
-                        <Button
-                            size="sm"
-                            variant="outline-light"
-                            onClick={async () => { const d = await getIndexes(navigate); setIndexes(d || []); }}
-                        >
+                        <Button size="sm" variant="outline-light" onClick={reloadIndexes}>
                             Обновить
                         </Button>
                     </Card.Header>
@@ -226,18 +236,40 @@ const CreateIndex = () => {
                         {indexes.length === 0 ? (
                             <p className="text-muted p-3 mb-0">Индексов нет</p>
                         ) : (
-                            <Table hover responsive className="mb-0">
+                            <Table hover responsive className="mb-0 align-middle">
                                 <thead className="table-light">
                                     <tr>
                                         <th>Название</th>
+                                        <th>Статус</th>
                                         <th>Создан</th>
+                                        <th className="text-end">Действия</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {indexes.map((idx) => (
                                         <tr key={idx.id}>
                                             <td>{idx.name}</td>
+                                            <td>
+                                                <StatusBadge
+                                                    status={idx.status}
+                                                    progress={idx.progress}
+                                                    error={idx.error_message}
+                                                />
+                                            </td>
                                             <td><small>{fmtDate(idx.created_at)}</small></td>
+                                            <td className="text-end">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline-danger"
+                                                    disabled={idx.status === "building"}
+                                                    title={idx.status === "building"
+                                                        ? "Нельзя удалить, пока индекс создаётся"
+                                                        : "Удалить индекс"}
+                                                    onClick={() => handleDelete(idx)}
+                                                >
+                                                    Удалить
+                                                </Button>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
