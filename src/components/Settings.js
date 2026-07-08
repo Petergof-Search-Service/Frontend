@@ -6,6 +6,7 @@ import {isAdmin, isOwner} from "../api/IsAdmin";
 import {refreshUserOrg} from "../api/GetToken";
 import {getSettings} from "../api/GetSettings";
 import {sendSettings} from "../api/SendSettings";
+import {DEFAULT_RAG_PROMPT} from "../constants/settings";
 
 const Settings = () => {
     const [settings, setSettings] = useState({
@@ -71,7 +72,7 @@ const Settings = () => {
 
     const handleReset = () => {
         setSettings({
-            prompt: "Вы ассистируете научного руководителя музейного комплекса Петергоф. Ниже вам дан контекст, откуда брать информацию. Разрешено брать сразу несколько текстов. Отвечайте на вопросы, которые он задает. Игнорируйте контекст, если считаете его нерелевантным. Вместе с ответом также напишите название файла и страницу, откуда была взята информация.. Ответь на вопрос: ",
+            prompt: DEFAULT_RAG_PROMPT,
             temperature: 0.2,
             count_vector: 15,
             count_fulltext: 5,
